@@ -482,7 +482,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
         ${daily.map((d, i) => (d ? bar(i, d.best) : "")).join("")}
         <line class="axis" x1="${padL}" x2="${w}" y1="${base}" y2="${base}"/><text class="tick" x="${padL - 4}" y="${base}">0</text>
         ${norm // with a band, its key takes the left of the date row
-          ? `<rect class="norm-key" x="${padL}" y="${h - 9}" width="7" height="7" rx="1.5"/><text class="date" x="${padL + 10}" y="${h - 2}">${w >= 150 ? "adults " : ""}${norm.join("–")}</text>`
+          ? `<rect class="norm-key" x="${padL}" y="${h - 9}" width="7" height="7" rx="1.5"/><text class="date" x="${padL + 10}" y="${h - 2}">${w >= 150 ? "most adults" : "typical"}</text>`
           : `<text class="date" x="${padL}" y="${h - 2}">${w < 150 ? `${n}d` : dayLabel(days[0])}</text>`}
         <text class="date" x="${w}" y="${h - 2}" text-anchor="end">Today</text>
       </svg>`);
