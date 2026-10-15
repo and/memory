@@ -109,6 +109,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .spark .grid { stroke: var(--cab-edge); stroke-width: 1; }
 .spark .tick { fill: var(--dim); font-family: var(--mono); font-size: 10px; text-anchor: end; dominant-baseline: middle; }
 .spark .bar { fill: var(--teal); }
+.spark .norm { fill: var(--dim); opacity: 0.14; }
+.spark .norm-edge { stroke: var(--line); stroke-width: 1; }
+.spark .norm-key { fill: color-mix(in srgb, var(--dim) 14%, var(--cab)); stroke: var(--line); stroke-width: 1; }
 .spark .axis { stroke: var(--line); stroke-width: 1; }
 .spark .col { fill: var(--teal-deep); }
 .spark .date { fill: var(--dim); font-family: var(--mono); font-size: 10px; }
@@ -280,6 +283,6 @@ footer a { color: var(--teal); }
   <footer><a href="https://github.com/and/memory">Source on GitHub</a></footer>
 </div>
 
-<script src="game.js?v=11"></script>
+<script src="game.js?v=12"></script>
 </body>
 </html>

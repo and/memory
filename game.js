@@ -6,8 +6,9 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
 (() => {
   const API = (new URLSearchParams(location.search).get("api") || API_URL || "").replace(/\/+$/, "");
   const MODES = {
-    fwd: { name: "Digits", start: 3, max: 14, unit: "digits", show: 900, gap: 200 },
-    bwd: { name: "Reverse", start: 2, max: 12, unit: "digits", show: 900, gap: 200 },
+    // norm: the usual adult span range from digit-span research. Pointers has none.
+    fwd: { name: "Digits", start: 3, max: 14, unit: "digits", show: 900, gap: 200, norm: [5, 8] },
+    bwd: { name: "Reverse", start: 2, max: 12, unit: "digits", show: 900, gap: 200, norm: [4, 6] },
     ptr: { name: "Pointers", start: 2, max: 7, unit: "variables", show: 1300, update: 1700, gap: 300 },
   };
   const LETTERS = ["a", "b", "c", "d", "e", "f", "g"];
@@ -449,20 +450,21 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
           <div class="days"><span class="k">Days</span><span class="v">${played.length}</span></div>
           <div><span class="k">Week</span><span class="v ${flat ? "" : delta > 0 ? "up" : "down"}">${trend}</span></div>
           ${info(`<p>Each bar is your best span that day, over the last ${DAYS} days. You played on ${played.length} of them; empty days are days you didn't play.</p>
-            <p><b>Best</b>: best span in ${DAYS} days.<br><b>Days</b>: days you played.<br><b>Week</b>: your average daily best this week compared with last week.</p>`, `${MODES[k].name} progress`)}
+            <p><b>Best</b>: best span in ${DAYS} days.<br><b>Days</b>: days you played.<br><b>Week</b>: your average daily best this week compared with last week.</p>
+            ${MODES[k].norm ? `<p>The shaded band is the usual adult range, ${MODES[k].norm.join(" to ")}. It's a rough guide from research, not a test.</p>` : ""}`, `${MODES[k].name} progress`)}
         </div>`;
       if (!played.length) { el.insertAdjacentHTML("beforeend", `<p class="empty">No games in the last ${DAYS} days.</p>`); continue; }
-      drawChart(el, days, daily);
+      drawChart(el, days, daily, MODES[k].norm);
     }
   }
 
-  function drawChart(el, allDays, allDaily) {
+  function drawChart(el, allDays, allDaily, norm) {
     const cs = getComputedStyle(el);
     const w = Math.max(60, el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
-    const h = 76, padL = 14, padT = 8, axisH = 14, base = h - axisH;
+    const h = 80, padL = 14, padT = 12, axisH = 14, base = h - axisH;
     const n = Math.min(allDays.length, Math.max(7, Math.floor((w - padL) / 4))); // at least 4px per day
     const days = allDays.slice(-n), daily = allDaily.slice(-n);
-    const top = Math.max(1, ...daily.filter(Boolean).map((d) => d.best));
+    const top = Math.max(1, norm ? norm[1] : 0, ...daily.filter(Boolean).map((d) => d.best));
     const slot = (w - padL) / n, bw = Math.min(24, Math.max(1.5, slot - 2));
     const X = (i) => padL + i * slot + (slot - bw) / 2;
     const Y = (v) => base - (v * (base - padT)) / top;
@@ -473,10 +475,15 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     el.insertAdjacentHTML("beforeend", `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
         aria-label="Best span per day, last ${n} days: ${daily.map((d, i) => d && `${dayLabel(days[i])} ${d.best}`).filter(Boolean).join(", ")}">
         <rect class="col" y="${padT - 4}" width="${slot}" height="${base - padT + 4}" visibility="hidden"/>
-        <line class="grid" x1="${padL}" x2="${w}" y1="${Y(top)}" y2="${Y(top)}"/><text class="tick" x="${padL - 4}" y="${Y(top)}">${top}</text>
+        ${norm ? `<rect class="norm" x="${padL}" y="${Y(norm[1])}" width="${w - padL}" height="${Y(norm[0]) - Y(norm[1])}"/>
+          <line class="norm-edge" x1="${padL}" x2="${w}" y1="${Y(norm[1])}" y2="${Y(norm[1])}"/><line class="norm-edge" x1="${padL}" x2="${w}" y1="${Y(norm[0])}" y2="${Y(norm[0])}"/>
+          <text class="tick" x="${padL - 4}" y="${Y(norm[0])}">${norm[0]}</text><text class="tick" x="${padL - 4}" y="${Y(norm[1])}">${norm[1]}</text>` : ""}
+        ${!norm || top - norm[1] >= 2 ? `<line class="grid" x1="${padL}" x2="${w}" y1="${Y(top)}" y2="${Y(top)}"/><text class="tick" x="${padL - 4}" y="${Y(top)}">${top}</text>` : ""}
         ${daily.map((d, i) => (d ? bar(i, d.best) : "")).join("")}
         <line class="axis" x1="${padL}" x2="${w}" y1="${base}" y2="${base}"/><text class="tick" x="${padL - 4}" y="${base}">0</text>
-        <text class="date" x="${padL}" y="${h - 2}">${w < 150 ? `${n}d` : dayLabel(days[0])}</text>
+        ${norm // with a band, its key takes the left of the date row
+          ? `<rect class="norm-key" x="${padL}" y="${h - 9}" width="7" height="7" rx="1.5"/><text class="date" x="${padL + 10}" y="${h - 2}">${w >= 150 ? "adults " : ""}${norm.join("–")}</text>`
+          : `<text class="date" x="${padL}" y="${h - 2}">${w < 150 ? `${n}d` : dayLabel(days[0])}</text>`}
         <text class="date" x="${w}" y="${h - 2}" text-anchor="end">Today</text>
       </svg>`);
 
