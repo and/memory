@@ -96,7 +96,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 /* Progress under each mode card */
 .mode-col { display: grid; gap: 6px; align-content: start; min-width: 0; }
 .prog { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 8px 10px 6px; display: grid; gap: 4px; min-width: 0; }
-.prog .stats { display: flex; justify-content: space-between; gap: 6px; }
+.prog { position: relative; }
+.prog .stats { display: flex; justify-content: space-between; gap: 6px; padding-right: 24px; }
+.prog .stats details.hint { position: absolute; top: 7px; right: 7px; }
 .prog .stats div { display: grid; min-width: 0; }
 .prog .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
 .prog .v { font-family: var(--mono); font-weight: 800; font-size: 15px; color: var(--ink); }
@@ -106,12 +108,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .spark { display: block; overflow: visible; touch-action: pan-y; }
 .spark .grid { stroke: var(--cab-edge); stroke-width: 1; }
 .spark .tick { fill: var(--dim); font-family: var(--mono); font-size: 10px; text-anchor: end; dominant-baseline: middle; }
-.spark .end { fill: var(--ink); font-family: var(--mono); font-size: 11px; font-weight: 700; dominant-baseline: middle; }
-.spark .line { fill: none; stroke: var(--teal); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.spark .dot { fill: var(--teal); stroke: var(--cab); stroke-width: 2; paint-order: stroke; }
-.spark .dot.practice { fill: var(--cab); stroke: var(--teal); stroke-width: 1.5; r: 3.25; }
-.spark .dot.hot { r: 5.5; }
-.spark .cross { stroke: var(--dim); stroke-width: 1; }
+.spark .bar { fill: var(--teal); }
+.spark .axis { stroke: var(--line); stroke-width: 1; }
+.spark .col { fill: var(--teal-deep); }
+.spark .date { fill: var(--dim); font-family: var(--mono); font-size: 10px; }
 details.hint { display: inline-block; position: relative; vertical-align: middle; text-transform: none; letter-spacing: normal; }
 details.hint summary { list-style: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); color: var(--dim); font: italic 700 11px/1 Georgia, serif; cursor: pointer; }
 details.hint summary::-webkit-details-marker { display: none; }
@@ -121,7 +121,7 @@ details.hint .pop p { margin: 0; color: var(--dim); max-width: none; font-size: 
 details.hint .pop b { color: var(--ink); }
 .tip { position: fixed; z-index: 10; pointer-events: none; background: var(--screen); border: 1px solid var(--cab-edge); border-radius: 8px; padding: 6px 9px; font-family: var(--mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--ink); }
 .tip .d { color: var(--dim); }
-@media (max-width: 520px) { .prog { padding: 6px 7px 4px; } .prog .k { font-size: 9px; letter-spacing: 0.04em; } .prog .v { font-size: 13px; } }
+@media (max-width: 520px) { .prog { padding: 6px 7px 4px; } .prog .stats { justify-content: flex-start; gap: 10px; padding-right: 20px; } .prog .stats .days { display: none; } .prog .stats details.hint { top: 5px; right: 4px; } .prog .k { font-size: 9px; letter-spacing: 0.04em; } .prog .v { font-size: 12px; } }
 
 .cab { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 18px; padding: 12px; display: grid; gap: 12px; }
 .hud { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-family: var(--mono); font-size: 14px; padding: 2px 4px; }
@@ -280,6 +280,6 @@ footer a { color: var(--teal); }
   <footer><a href="https://github.com/and/memory">Source on GitHub</a></footer>
 </div>
 
-<script src="game.js?v=10"></script>
+<script src="game.js?v=11"></script>
 </body>
 </html>

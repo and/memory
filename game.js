@@ -378,8 +378,8 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     const newScore = !prev || g.score > prev.score;
     best[mode] = { span: Math.max(g.span, prev?.span || 0), score: Math.max(g.score, prev?.score || 0) };
     store.set("mspan-best", best);
-    history.unshift({ date: new Date().toISOString().slice(0, 10), mode, span: g.span, score: g.score, ranked: counted });
-    history = history.slice(0, 300); store.set("mspan-history", history);
+    history.unshift({ date: dayKey(new Date()), mode, span: g.span, score: g.score, ranked: counted });
+    history = history.slice(0, 3000); store.set("mspan-history", history); // a month of heavy play across three modes
     renderBest(); counted ? loadBoard() : renderProgress();
     clear(); lockModes(false);
     view(`<span class="eyebrow">${esc(m.name)}${counted ? "" : " · practice"} · game over</span>
@@ -415,70 +415,84 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     }
   }
 
-  // Progress under each mode card: a few numbers, then span per game (oldest on the left).
-  // Filled dots are Live games, hollow dots are Practice.
-  const avgSpan = (a) => a.reduce((s, r) => s + r.span, 0) / a.length;
+  // Progress under each mode card: one bar per day for the last 30 days,
+  // each bar the best span that day. Days without a game stay empty.
+  const DAYS = 30;
+  const dayKey = (d) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+  const dayLabel = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const lastDays = (n) => Array.from({ length: n }, (_, i) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - (n - 1 - i)); return d; });
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
   const tip = document.createElement("div");
   tip.className = "tip"; tip.hidden = true; document.body.appendChild(tip);
 
   function renderProgress() {
+    const days = lastDays(DAYS), keys = days.map(dayKey);
     for (const k of Object.keys(MODES)) {
       const el = $("prog-" + k);
-      const games = history.filter((r) => r.mode === k); // newest first
-      if (!games.length) { el.innerHTML = `<p class="empty">Finish a game to start your graph.</p>`; continue; }
-      const recent = games.slice(0, 5), before = games.slice(5, 10);
-      const delta = before.length ? avgSpan(recent) - avgSpan(before) : null;
-      const trend = delta == null ? "–" : Math.abs(delta) < 0.05 ? "±0" : `${delta > 0 ? "▲" : "▼"}${Math.abs(delta).toFixed(1)}`;
-      const dir = delta == null || Math.abs(delta) < 0.05 ? "" : delta > 0 ? "up" : "down";
+      const all = history.filter((r) => r.mode === k);
+      if (!all.length) { el.innerHTML = `<p class="empty">Finish a game to start your graph.</p>`; continue; }
+      const byDay = new Map();
+      for (const r of all) {
+        if (r.date < keys[0]) continue;
+        const d = byDay.get(r.date) || { best: 0, n: 0 };
+        d.best = Math.max(d.best, r.span); d.n++; byDay.set(r.date, d);
+      }
+      const daily = keys.map((key) => byDay.get(key) || null);
+      const played = daily.filter(Boolean);
+      const week = (from, to) => daily.slice(from, to).filter(Boolean).map((d) => d.best);
+      const thisWeek = week(DAYS - 7, DAYS), lastWeek = week(DAYS - 14, DAYS - 7);
+      const delta = thisWeek.length && lastWeek.length ? mean(thisWeek) - mean(lastWeek) : null;
+      const flat = delta == null || Math.abs(delta) < 0.05;
+      const trend = delta == null ? "–" : flat ? "±0" : `${delta > 0 ? "▲" : "▼"}${Math.abs(delta).toFixed(1)}`;
       el.innerHTML = `<div class="stats">
-          <div><span class="k">Avg</span><span class="v">${avgSpan(games.slice(0, 10)).toFixed(1)}</span></div>
-          <div><span class="k">Trend</span><span class="v ${dir}">${trend}</span></div>
-          ${info(`<p>${games.length} ${games.length === 1 ? "game" : "games"} in ${MODES[k].name}.</p>
-            <p><b>Avg</b>: average span of your last 10 games.<br><b>Trend</b>: last 5 games compared with the 5 before.</p>
-            <p>The graph shows your span per game, oldest on the left. Filled dots are Live games, hollow dots are Practice.</p>`, `${MODES[k].name} progress`)}
+          <div><span class="k">Best</span><span class="v">${played.length ? Math.max(...played.map((d) => d.best)) : "–"}</span></div>
+          <div class="days"><span class="k">Days</span><span class="v">${played.length}</span></div>
+          <div><span class="k">Week</span><span class="v ${flat ? "" : delta > 0 ? "up" : "down"}">${trend}</span></div>
+          ${info(`<p>Each bar is your best span that day, over the last ${DAYS} days. You played on ${played.length} of them; empty days are days you didn't play.</p>
+            <p><b>Best</b>: best span in ${DAYS} days.<br><b>Days</b>: days you played.<br><b>Week</b>: your average daily best this week compared with last week.</p>`, `${MODES[k].name} progress`)}
         </div>`;
-      drawChart(el, games);
+      if (!played.length) { el.insertAdjacentHTML("beforeend", `<p class="empty">No games in the last ${DAYS} days.</p>`); continue; }
+      drawChart(el, days, daily);
     }
   }
 
-  function drawChart(el, games) {
+  function drawChart(el, allDays, allDaily) {
     const cs = getComputedStyle(el);
-    const w = Math.max(60, el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), h = 64, padL = 16, padR = 16, padT = 9, padB = 9;
-    const fit = Math.max(2, Math.floor((w - padL - padR) / 9) + 1); // keep dots at least 9px apart
-    const pts = games.slice(0, Math.min(20, fit)).reverse();
-    const spans = pts.map((p) => p.span);
-    const lo = Math.min(...spans), hi = Math.max(...spans);
-    const yMin = Math.max(0, lo - 1), yMax = hi + 1;
-    const X = (i) => (pts.length === 1 ? w / 2 : padL + (i * (w - padL - padR)) / (pts.length - 1));
-    const Y = (v) => padT + ((yMax - v) * (h - padT - padB)) / (yMax - yMin);
-    const xs = pts.map((_, i) => X(i)), ys = spans.map(Y);
-    const grid = [...new Set([lo, hi])].map((v) =>
-      `<line class="grid" x1="${padL - 4}" x2="${w - padR + 4}" y1="${Y(v)}" y2="${Y(v)}"/><text class="tick" x="${padL - 7}" y="${Y(v)}">${v}</text>`).join("");
-    const dots = pts.map((p, i) => `<circle class="dot ${p.ranked === false ? "practice" : ""}" cx="${xs[i]}" cy="${ys[i]}" r="4"/>`).join("");
-    const last = pts.length - 1;
+    const w = Math.max(60, el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+    const h = 76, padL = 14, padT = 8, axisH = 14, base = h - axisH;
+    const n = Math.min(allDays.length, Math.max(7, Math.floor((w - padL) / 4))); // at least 4px per day
+    const days = allDays.slice(-n), daily = allDaily.slice(-n);
+    const top = Math.max(1, ...daily.filter(Boolean).map((d) => d.best));
+    const slot = (w - padL) / n, bw = Math.min(24, Math.max(1.5, slot - 2));
+    const X = (i) => padL + i * slot + (slot - bw) / 2;
+    const Y = (v) => base - (v * (base - padT)) / top;
+    const bar = (i, v) => {
+      const x = X(i), y = Math.min(Y(v), base - 2), r = Math.min(2, bw / 2, base - y); // 4px-style rounded top, square base
+      return `<path class="bar" d="M${x},${base}V${y + r}Q${x},${y} ${x + r},${y}H${x + bw - r}Q${x + bw},${y} ${x + bw},${y + r}V${base}Z"/>`;
+    };
     el.insertAdjacentHTML("beforeend", `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
-        aria-label="Span in your last ${pts.length} games, oldest first: ${spans.join(", ")}">
-        ${grid}
-        <line class="cross" y1="${padT - 4}" y2="${h - padB + 4}" visibility="hidden"/>
-        ${pts.length > 1 ? `<polyline class="line" points="${xs.map((x, i) => `${x},${ys[i]}`).join(" ")}"/>` : ""}
-        ${dots}
-        <text class="end" x="${xs[last] + 7}" y="${ys[last]}">${spans[last]}</text>
+        aria-label="Best span per day, last ${n} days: ${daily.map((d, i) => d && `${dayLabel(days[i])} ${d.best}`).filter(Boolean).join(", ")}">
+        <rect class="col" y="${padT - 4}" width="${slot}" height="${base - padT + 4}" visibility="hidden"/>
+        <line class="grid" x1="${padL}" x2="${w}" y1="${Y(top)}" y2="${Y(top)}"/><text class="tick" x="${padL - 4}" y="${Y(top)}">${top}</text>
+        ${daily.map((d, i) => (d ? bar(i, d.best) : "")).join("")}
+        <line class="axis" x1="${padL}" x2="${w}" y1="${base}" y2="${base}"/><text class="tick" x="${padL - 4}" y="${base}">0</text>
+        <text class="date" x="${padL}" y="${h - 2}">${w < 150 ? `${n}d` : dayLabel(days[0])}</text>
+        <text class="date" x="${w}" y="${h - 2}" text-anchor="end">Today</text>
       </svg>`);
 
-    const svg = el.querySelector("svg"), cross = svg.querySelector(".cross"), circles = svg.querySelectorAll(".dot");
+    const svg = el.querySelector("svg"), col = svg.querySelector(".col");
     const show = (e) => {
-      const r = svg.getBoundingClientRect(), x = e.clientX - r.left;
-      let i = 0; xs.forEach((v, j) => { if (Math.abs(v - x) < Math.abs(xs[i] - x)) i = j; });
-      cross.setAttribute("x1", xs[i]); cross.setAttribute("x2", xs[i]); cross.setAttribute("visibility", "visible");
-      circles.forEach((c, j) => c.classList.toggle("hot", j === i));
-      const p = pts[i], kind = p.ranked === false ? "Practice" : p.ranked ? "Live" : "";
-      tip.innerHTML = `<span class="d">${p.date}${kind ? " · " + kind : ""}</span><br>Span <b>${p.span}</b> · ${p.score} pts`;
+      const r = svg.getBoundingClientRect();
+      const i = Math.max(0, Math.min(n - 1, Math.floor((e.clientX - r.left - padL) / slot)));
+      col.setAttribute("x", padL + i * slot); col.setAttribute("visibility", "visible");
+      const d = daily[i];
+      tip.innerHTML = `<span class="d">${dayLabel(days[i])}</span><br>${d ? `Best span <b>${d.best}</b> · ${d.n} ${d.n === 1 ? "game" : "games"}` : "No games"}`;
       tip.hidden = false;
-      const tw = tip.offsetWidth, th = tip.offsetHeight;
-      tip.style.left = Math.min(innerWidth - tw - 8, Math.max(8, r.left + xs[i] - tw / 2)) + "px";
-      tip.style.top = Math.max(8, r.top + ys[i] - th - 12) + "px";
+      const tw = tip.offsetWidth, th = tip.offsetHeight, cx = r.left + padL + (i + 0.5) * slot;
+      tip.style.left = Math.min(innerWidth - tw - 8, Math.max(8, cx - tw / 2)) + "px";
+      tip.style.top = Math.max(8, r.top + (d ? Y(d.best) : base) - th - 10) + "px";
     };
-    const hide = () => { tip.hidden = true; cross.setAttribute("visibility", "hidden"); circles.forEach((c) => c.classList.remove("hot")); };
+    const hide = () => { tip.hidden = true; col.setAttribute("visibility", "hidden"); };
     svg.addEventListener("pointermove", show);
     svg.addEventListener("pointerdown", show);
     svg.addEventListener("pointerleave", hide);
