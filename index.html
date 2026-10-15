@@ -54,11 +54,39 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
   display: grid; gap: 1px;
 }
 .mode .n { font-weight: 800; font-size: 16px; }
-.mode .d { font-size: 13px; color: var(--dim); }
 .mode .pb { font-family: var(--mono); font-size: 12px; color: var(--amber); }
 .mode[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-deep); }
 .mode:disabled { opacity: 0.45; cursor: default; }
-@media (max-width: 520px) { .mode .d { display: none; } }
+
+/* Progress under each mode card */
+.mode-col { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.prog { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 8px 10px 6px; display: grid; gap: 4px; min-width: 0; }
+.prog .stats { display: flex; justify-content: space-between; gap: 6px; }
+.prog .stats div { display: grid; min-width: 0; }
+.prog .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.prog .v { font-family: var(--mono); font-weight: 800; font-size: 15px; color: var(--ink); }
+.prog .v.up { color: var(--good); }
+.prog .v.down { color: var(--bad); }
+.prog .empty { margin: 0; font-size: 13px; color: var(--dim); padding: 6px 0; }
+.spark { display: block; overflow: visible; touch-action: pan-y; }
+.spark .grid { stroke: var(--cab-edge); stroke-width: 1; }
+.spark .tick { fill: var(--dim); font-family: var(--mono); font-size: 10px; text-anchor: end; dominant-baseline: middle; }
+.spark .end { fill: var(--ink); font-family: var(--mono); font-size: 11px; font-weight: 700; dominant-baseline: middle; }
+.spark .line { fill: none; stroke: var(--teal); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.spark .dot { fill: var(--teal); stroke: var(--cab); stroke-width: 2; paint-order: stroke; }
+.spark .dot.practice { fill: var(--cab); stroke: var(--teal); stroke-width: 1.5; r: 3.25; }
+.spark .dot.hot { r: 5.5; }
+.spark .cross { stroke: var(--dim); stroke-width: 1; }
+details.hint { display: inline-block; position: relative; vertical-align: middle; text-transform: none; letter-spacing: normal; }
+details.hint summary { list-style: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--cab-edge); color: var(--dim); font: italic 700 11px/1 Georgia, serif; cursor: pointer; }
+details.hint summary::-webkit-details-marker { display: none; }
+details.hint summary:hover, details.hint[open] summary { color: var(--ink); border-color: var(--teal); }
+details.hint .pop { position: fixed; z-index: 20; width: min(280px, calc(100vw - 16px)); background: var(--screen); border: 1px solid var(--cab-edge); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; text-align: left; font-family: var(--display); font-size: 14px; font-weight: 400; line-height: 1.45; color: var(--dim); box-shadow: 0 8px 24px rgb(0 0 0 / 0.4); }
+details.hint .pop p { margin: 0; color: var(--dim); max-width: none; font-size: 14px; }
+details.hint .pop b { color: var(--ink); }
+.tip { position: fixed; z-index: 10; pointer-events: none; background: var(--screen); border: 1px solid var(--cab-edge); border-radius: 8px; padding: 6px 9px; font-family: var(--mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--ink); }
+.tip .d { color: var(--dim); }
+@media (max-width: 520px) { .prog { padding: 6px 7px 4px; } .prog .k { font-size: 9px; letter-spacing: 0.04em; } .prog .v { font-size: 13px; } }
 
 .cab { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 18px; padding: 12px; display: grid; gap: 12px; }
 .hud { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-family: var(--mono); font-size: 14px; padding: 2px 4px; }
@@ -142,7 +170,6 @@ td.num { font-family: var(--mono); }
 .board-tabs button { background: transparent; border: 1px solid var(--cab-edge); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--dim); }
 .board-tabs button[aria-pressed="true"] { color: var(--ink); border-color: var(--teal); background: var(--teal-deep); }
 tr.you td { color: var(--amber); font-weight: 700; }
-.note { font-size: 13px; color: var(--dim); }
 footer { color: var(--dim); font-size: 13px; text-align: center; }
 footer a { color: var(--teal); }
 @media (prefers-reduced-motion: reduce) { .stim.pop, .flash-ok, .flash-no, .typed .caret { animation: none; } }
@@ -159,9 +186,18 @@ footer a { color: var(--teal); }
   <div class="who" id="who" hidden></div>
 
   <div class="modes" role="group" aria-label="Game mode">
-    <button class="mode" id="mode-fwd" data-mode="fwd" aria-pressed="true"><span class="n">Digits</span><span class="d">Repeat in order</span><span class="pb" id="pb-fwd">Best: –</span></button>
-    <button class="mode" id="mode-bwd" data-mode="bwd" aria-pressed="false"><span class="n">Reverse</span><span class="d">Repeat backwards</span><span class="pb" id="pb-bwd">Best: –</span></button>
-    <button class="mode" id="mode-ptr" data-mode="ptr" aria-pressed="false"><span class="n">Pointers</span><span class="d">Track changing variables</span><span class="pb" id="pb-ptr">Best: –</span></button>
+    <div class="mode-col">
+      <button class="mode" id="mode-fwd" data-mode="fwd" aria-pressed="true"><span class="n">Digits</span><span class="pb" id="pb-fwd">Best span –</span></button>
+      <div class="prog" id="prog-fwd"></div>
+    </div>
+    <div class="mode-col">
+      <button class="mode" id="mode-bwd" data-mode="bwd" aria-pressed="false"><span class="n">Reverse</span><span class="pb" id="pb-bwd">Best span –</span></button>
+      <div class="prog" id="prog-bwd"></div>
+    </div>
+    <div class="mode-col">
+      <button class="mode" id="mode-ptr" data-mode="ptr" aria-pressed="false"><span class="n">Pointers</span><span class="pb" id="pb-ptr">Best span –</span></button>
+      <div class="prog" id="prog-ptr"></div>
+    </div>
   </div>
 
   <div class="cab">
@@ -177,7 +213,7 @@ footer a { color: var(--teal); }
 
   <div class="info" id="board-panel">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <h3 style="margin:0">Leaderboard</h3>
+      <h3 style="margin:0">Leaderboard <details class="hint"><summary aria-label="About the leaderboard" title="About the leaderboard">i</summary><div class="pop"><p>Every round is made and checked on the server, so these scores were earned one round at a time.</p><p>Each player's best Play game per mode counts. Practice games never appear here.</p></div></details></h3>
       <span class="grow"></span>
       <div class="board-tabs" id="board-tabs">
         <button data-mode="fwd" aria-pressed="true">Digits</button>
@@ -191,26 +227,9 @@ footer a { color: var(--teal); }
         <tbody id="board"></tbody>
       </table>
     </div>
-    <p class="note">Every round is created and checked on the server, so scores here were earned one round at a time. Each player's best game per mode counts.</p>
   </div>
 
-  <div class="info">
-    <h3>How it works</h3>
-    <p>Each round shows a sequence one item at a time. Hold it in your head, then answer. Get it right and the next round is one item longer. Miss and you lose a life. Three lives per game. Correct answers in a row build a streak that multiplies your points.</p>
-    <p>The highest level you clear is your span for that mode. Most adults clear 5 to 8 digits in order and 4 to 6 in reverse. Pointers mode was made for this game and has no published norms, so compare it with your own earlier games. Scores move by about one level from day to day with sleep and focus, so watch the trend rather than a single game.</p>
-  </div>
-
-  <div class="info">
-    <h3>Your recent games</h3>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Date</th><th>Mode</th><th>Span</th><th>Score</th></tr></thead>
-        <tbody id="history"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <footer>Your history is saved in this browser. Made while learning data structures. <a href="https://github.com/and/memory">Source on GitHub</a></footer>
+  <footer><a href="https://github.com/and/memory">Source on GitHub</a></footer>
 </div>
 
 <script src="game.js"></script>

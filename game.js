@@ -62,6 +62,21 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   function flash(ok) { screenEl.classList.remove("flash-ok", "flash-no"); void screenEl.offsetWidth; screenEl.classList.add(ok ? "flash-ok" : "flash-no"); }
   const mult = (streak) => Math.min(3, 1 + 0.25 * Math.max(0, streak - 1));
 
+  // Info icon: a small "i" that opens a popover with the details we keep off the screen.
+  const info = (html, label = "More info") =>
+    `<details class="hint"><summary aria-label="${esc(label)}" title="${esc(label)}">i</summary><div class="pop">${html}</div></details>`;
+  function placePop(d) {
+    const pop = d.querySelector(".pop"), r = d.querySelector("summary").getBoundingClientRect();
+    const pw = pop.offsetWidth, ph = pop.offsetHeight;
+    pop.style.left = Math.min(innerWidth - pw - 8, Math.max(8, r.left + r.width / 2 - pw / 2)) + "px";
+    pop.style.top = (r.bottom + 6 + ph > innerHeight ? Math.max(8, r.top - ph - 6) : r.bottom + 6) + "px";
+  }
+  const closeInfo = (except) => document.querySelectorAll("details.hint[open]").forEach((d) => { if (d !== except) d.open = false; });
+  document.addEventListener("toggle", (e) => { if (e.target.matches?.("details.hint") && e.target.open) { closeInfo(e.target); placePop(e.target); } }, true);
+  document.addEventListener("click", (e) => { if (!e.target.closest("details.hint")) closeInfo(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeInfo(); });
+  addEventListener("scroll", () => closeInfo(), { passive: true });
+
   // ---------- server ----------
   async function api(path, opts = {}) {
     const headers = { "Content-Type": "application/json" };
@@ -99,9 +114,8 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       <h2>${changing ? "Pick a new name" : "Here's your leaderboard name"}</h2>
       <div class="nick" id="nick">${esc(suggestion)}</div>
       <div class="row"><button class="go ghost" id="shuffle">Shuffle</button><button class="go" id="keep">${changing ? "Use this name" : "Keep this name"}</button></div>
-      <p class="small">Or type your own (3 to 24 letters, numbers or spaces):</p>
       <form id="own" class="row" style="flex-direction:column;align-items:center">
-        <input class="name-input" id="own-name" maxlength="24" autocomplete="off" aria-label="Your own name">
+        <input class="name-input" id="own-name" maxlength="24" autocomplete="off" placeholder="Or type your own" aria-label="Or type your own name (3 to 24 letters, numbers or spaces)">
         <button class="go ghost" type="submit">Use my name</button>
       </form>
       <div class="err" id="err"></div>
@@ -202,16 +216,14 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       bwd: "Digits flash one at a time. Type them back in reverse: see 3 8 1, type 183.",
       ptr: "Each variable gets a value, then some change: a = 4 sets a value, b = a copies a's value at that moment. At the end, give every final value.",
     }[mode];
-    const b = best[mode];
-    view(`<span class="eyebrow">${esc(m.name)} mode</span>
-      <h2>${mode === "ptr" ? "Keep every value current" : "Hold the sequence"}</h2>
-      <p>${how}</p>
-      ${b ? `<p class="mono small">Your best: span ${b.span} · ${b.score} points</p>` : ""}
+    view(`<h2>${esc(m.name)} ${info(`<p>${how}</p>
+        <p>Each right answer adds one item. A miss costs a life; you have ${LIVES}. Answers in a row multiply your points.</p>
+        ${online() ? `<p><b>Play</b> puts your score on the public leaderboard. <b>Practice</b> is offline: nothing is sent.</p>` : ""}
+        <p>Press Enter to ${ranked ? "play" : "practice"}.</p>`, "How to play")}</h2>
       ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
       <div class="row">${online()
         ? `<button class="go ghost" id="practice">Practice</button><button class="go" id="play">Play</button>`
-        : `<button class="go" id="practice">Practice</button>`}</div>
-      <p class="small">${online() ? "Play puts your score on the public leaderboard. Practice is offline and stays in this browser. " : "Games stay in this browser. "}Press Enter to ${ranked ? "play" : "practice"}.</p>`);
+        : `<button class="go" id="practice">Practice</button>`}</div>`);
     $("practice").onclick = () => start(false);
     if (online()) $("play").onclick = () => start(true);
     setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); start(ranked); } });
@@ -319,8 +331,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     view(`<div class="verdict ${ok ? "ok" : "no"}">${ok ? "Correct" : "Missed"}</div>
       ${ok ? `<div class="points">+${points}</div>` : `<p>${s.lives} ${s.lives === 1 ? "life" : "lives"} left</p>`}
       <p class="small">Answer <span class="mono">${esc(correct)}</span> · ${typedHtml}</p>
-      <div class="row"><button class="go" id="next">${over ? "See results" : ok ? "Level " + s.level : "Try level " + s.level + " again"}</button></div>
-      <p class="small">Press Enter to continue.</p>`);
+      <div class="row"><button class="go" id="next">${over ? "See results" : ok ? "Level " + s.level : "Try level " + s.level + " again"}</button></div>`);
     const next = () => (over ? gameOver() : play());
     $("next").onclick = next;
     setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); next(); } });
@@ -335,19 +346,17 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     best[mode] = { span: Math.max(g.span, prev?.span || 0), score: Math.max(g.score, prev?.score || 0) };
     store.set("mspan-best", best);
     history.unshift({ date: new Date().toISOString().slice(0, 10), mode, span: g.span, score: g.score, ranked: counted });
-    history = history.slice(0, 50); store.set("mspan-history", history);
-    renderBest(); renderHistory(); if (counted) loadBoard();
+    history = history.slice(0, 300); store.set("mspan-history", history);
+    renderBest(); renderProgress(); if (counted) loadBoard();
     clear(); lockModes(false);
-    view(`<span class="eyebrow">${esc(m.name)} · game over</span>
+    view(`<span class="eyebrow">${esc(m.name)}${counted ? "" : " · practice"} · game over</span>
       ${(newScore || newSpan) && g.score > 0 ? `<span class="badge">${newSpan ? "New best span" : "New high score"}</span>` : ""}
       <div class="big">${g.score}</div>
       <div class="results">
-        <div><span class="k">Span</span><span class="v">${g.span || "–"}</span></div>
+        <div><span class="k">Span ${info(`<p>${g.span ? `You held ${g.span} ${m.unit}. ` : ""}${spanNote(mode, g.span)}</p>`, "About your span")}</span><span class="v">${g.span || "–"}</span></div>
         <div><span class="k">${counted ? "Rank" : "Rounds"}</span><span class="v">${counted ? (rank ? "#" + rank : "–") : g.rounds}</span></div>
         <div><span class="k">Best span</span><span class="v">${best[mode].span || "–"}</span></div>
       </div>
-      <p>${g.span ? `You held ${g.span} ${m.unit}. ` : ""}${spanNote(mode, g.span)}</p>
-      ${!counted && online() ? `<p class="small">Practice game: not on the leaderboard.</p>` : ""}
       <div class="row"><button class="go" id="again">${counted ? "Play again" : "Practice again"}</button><button class="go ghost" id="copy">Copy result</button></div>`);
     $("again").onclick = () => start(counted);
     $("copy").onclick = async (e) => {
@@ -369,14 +378,81 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   function renderBest() {
     for (const k of Object.keys(MODES)) {
       const b = best[k];
-      $("pb-" + k).textContent = b ? `Best: span ${b.span} · ${b.score}` : "Best: –";
+      $("pb-" + k).textContent = b ? `Best span ${b.span}` : "Best span –";
     }
   }
-  function renderHistory() {
-    $("history").innerHTML = history.length
-      ? history.slice(0, 10).map((r) => `<tr><td class="num">${r.date}</td><td>${esc(MODES[r.mode]?.name || r.mode)}${r.ranked === false ? ` <span style="color:var(--dim)">· practice</span>` : ""}</td><td class="num">${r.span}</td><td class="num">${r.score}</td></tr>`).join("")
-      : `<tr><td colspan="4" style="color:var(--dim)">Your games will show up here.</td></tr>`;
+
+  // Progress under each mode card: a few numbers, then span per game (oldest on the left).
+  // Filled dots are Play games, hollow dots are Practice.
+  const avgSpan = (a) => a.reduce((s, r) => s + r.span, 0) / a.length;
+  const tip = document.createElement("div");
+  tip.className = "tip"; tip.hidden = true; document.body.appendChild(tip);
+
+  function renderProgress() {
+    for (const k of Object.keys(MODES)) {
+      const el = $("prog-" + k);
+      const games = history.filter((r) => r.mode === k); // newest first
+      if (!games.length) { el.innerHTML = `<p class="empty">Finish a game to start your graph.</p>`; continue; }
+      const recent = games.slice(0, 5), before = games.slice(5, 10);
+      const delta = before.length ? avgSpan(recent) - avgSpan(before) : null;
+      const trend = delta == null ? "–" : Math.abs(delta) < 0.05 ? "±0" : `${delta > 0 ? "▲" : "▼"}${Math.abs(delta).toFixed(1)}`;
+      const dir = delta == null || Math.abs(delta) < 0.05 ? "" : delta > 0 ? "up" : "down";
+      el.innerHTML = `<div class="stats">
+          <div><span class="k">Avg</span><span class="v">${avgSpan(games.slice(0, 10)).toFixed(1)}</span></div>
+          <div><span class="k">Trend</span><span class="v ${dir}">${trend}</span></div>
+          ${info(`<p>${games.length} ${games.length === 1 ? "game" : "games"} in ${MODES[k].name}.</p>
+            <p><b>Avg</b>: average span of your last 10 games.<br><b>Trend</b>: last 5 games compared with the 5 before.</p>
+            <p>The graph shows your span per game, oldest on the left. Filled dots are Play games, hollow dots are Practice.</p>`, `${MODES[k].name} progress`)}
+        </div>`;
+      drawChart(el, games);
+    }
   }
+
+  function drawChart(el, games) {
+    const cs = getComputedStyle(el);
+    const w = Math.max(60, el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), h = 64, padL = 16, padR = 16, padT = 9, padB = 9;
+    const fit = Math.max(2, Math.floor((w - padL - padR) / 9) + 1); // keep dots at least 9px apart
+    const pts = games.slice(0, Math.min(20, fit)).reverse();
+    const spans = pts.map((p) => p.span);
+    const lo = Math.min(...spans), hi = Math.max(...spans);
+    const yMin = Math.max(0, lo - 1), yMax = hi + 1;
+    const X = (i) => (pts.length === 1 ? w / 2 : padL + (i * (w - padL - padR)) / (pts.length - 1));
+    const Y = (v) => padT + ((yMax - v) * (h - padT - padB)) / (yMax - yMin);
+    const xs = pts.map((_, i) => X(i)), ys = spans.map(Y);
+    const grid = [...new Set([lo, hi])].map((v) =>
+      `<line class="grid" x1="${padL - 4}" x2="${w - padR + 4}" y1="${Y(v)}" y2="${Y(v)}"/><text class="tick" x="${padL - 7}" y="${Y(v)}">${v}</text>`).join("");
+    const dots = pts.map((p, i) => `<circle class="dot ${p.ranked === false ? "practice" : ""}" cx="${xs[i]}" cy="${ys[i]}" r="4"/>`).join("");
+    const last = pts.length - 1;
+    el.insertAdjacentHTML("beforeend", `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
+        aria-label="Span in your last ${pts.length} games, oldest first: ${spans.join(", ")}">
+        ${grid}
+        <line class="cross" y1="${padT - 4}" y2="${h - padB + 4}" visibility="hidden"/>
+        ${pts.length > 1 ? `<polyline class="line" points="${xs.map((x, i) => `${x},${ys[i]}`).join(" ")}"/>` : ""}
+        ${dots}
+        <text class="end" x="${xs[last] + 7}" y="${ys[last]}">${spans[last]}</text>
+      </svg>`);
+
+    const svg = el.querySelector("svg"), cross = svg.querySelector(".cross"), circles = svg.querySelectorAll(".dot");
+    const show = (e) => {
+      const r = svg.getBoundingClientRect(), x = e.clientX - r.left;
+      let i = 0; xs.forEach((v, j) => { if (Math.abs(v - x) < Math.abs(xs[i] - x)) i = j; });
+      cross.setAttribute("x1", xs[i]); cross.setAttribute("x2", xs[i]); cross.setAttribute("visibility", "visible");
+      circles.forEach((c, j) => c.classList.toggle("hot", j === i));
+      const p = pts[i], kind = p.ranked === false ? "Practice" : p.ranked ? "Play" : "";
+      tip.innerHTML = `<span class="d">${p.date}${kind ? " · " + kind : ""}</span><br>Span <b>${p.span}</b> · ${p.score} pts`;
+      tip.hidden = false;
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(innerWidth - tw - 8, Math.max(8, r.left + xs[i] - tw / 2)) + "px";
+      tip.style.top = Math.max(8, r.top + ys[i] - th - 12) + "px";
+    };
+    const hide = () => { tip.hidden = true; cross.setAttribute("visibility", "hidden"); circles.forEach((c) => c.classList.remove("hot")); };
+    svg.addEventListener("pointermove", show);
+    svg.addEventListener("pointerdown", show);
+    svg.addEventListener("pointerleave", hide);
+  }
+  let resizeFrame = 0;
+  addEventListener("resize", () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(renderProgress); });
+  addEventListener("scroll", () => { tip.hidden = true; }, { passive: true });
   let boardMode = "fwd";
   async function loadBoard() {
     const body = $("board");
@@ -406,6 +482,6 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     loadBoard(); title();
   }));
 
-  renderSound(); renderBest(); renderHistory(); renderWho(); loadBoard();
+  renderSound(); renderBest(); renderProgress(); renderWho(); loadBoard();
   title();
 })();
