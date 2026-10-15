@@ -10,4 +10,4 @@ ALLOWED_ORIGINS = "https://and.github.io,http://localhost:8000"
 binding = "DB"
 database_name = "memory-span"
 # Paste the database_id printed by `npx wrangler d1 create memory-span` here.
-database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+database_id = "b5038082-b63f-4fc8-a75e-064cc7e66bd5"

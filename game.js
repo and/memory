@@ -1,7 +1,7 @@
 // memory.span game logic.
 // Set API_URL to your Cloudflare Worker URL after deploying it (see worker/README.md).
 // Leave it empty to play offline only: no leaderboard, scores stay in this browser.
-const API_URL = "";
+const API_URL = "https://memory-span.anand-bbc.workers.dev";
 
 (() => {
   const API = (new URLSearchParams(location.search).get("api") || API_URL || "").replace(/\/+$/, "");
