@@ -23,6 +23,7 @@ Pointers mode was made for this game. It is the closest to tracing pointers in a
 - The first time someone plays a Live game, they get a random, work-safe nickname (like "Swift Otter 42") that they can keep, shuffle or replace. They can change it later.
 - Digit span is modelled on the standard clinical task (one digit per second, adding one each level), but this is a game, not a clinical test. Scores vary by about one level from day to day.
 - No build step: `index.html` and `game.js`.
+- Planned work is in [ROADMAP.md](ROADMAP.md).
 
 ## Run locally
 
