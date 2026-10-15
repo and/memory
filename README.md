@@ -18,9 +18,10 @@ Pointers mode was made for this game. It is the closest to tracing pointers in a
 
 ## Notes
 
-- Everything runs in the browser. Scores and history are saved in `localStorage` only.
+- The leaderboard runs on a small Cloudflare Worker that creates every round and checks every answer, so scores can't be made up in the browser. Setup is in [worker/README.md](worker/README.md). Without it, the game plays offline and keeps history in `localStorage` only.
+- Each player gets a random, work-safe nickname (like "Swift Otter 42") that they can change before playing.
 - Digit span is modelled on the standard clinical task (one digit per second, adding one each level), but this is a game, not a clinical test. Scores vary by about one level from day to day.
-- One file, no build step: `index.html`.
+- No build step: `index.html` and `game.js`.
 
 ## Run locally
 

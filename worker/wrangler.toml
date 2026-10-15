@@ -1,0 +1,13 @@
+name = "memory-span"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Pages that may call the API. Add your local test server if you use one.
+ALLOWED_ORIGINS = "https://and.github.io,http://localhost:8000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "memory-span"
+# Paste the database_id printed by `npx wrangler d1 create memory-span` here.
+database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
