@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Memory Span</title>
+<meta name="description" content="A memory game that finds how many things you can hold in your head: digits, digits backwards, and changing variables like pointers in code.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=JetBrains+Mono:wght@500;700;800&display=swap">
+<style>
+/* Layout: one arcade cabinet. HUD strip on top, the stimulus window in the middle,
+   keypad below. Single dark look on purpose: it is a game screen. */
+:root {
+  color-scheme: dark;
+  --bg: #0b1211;
+  --cab: #121c1a;
+  --cab-edge: #22322f;
+  --screen: #050a09;
+  --ink: #e6f2ef;
+  --dim: #8fa49e;
+  --teal: #4fd1c5;
+  --teal-deep: #0f3f3b;
+  --amber: #ffbf5a;
+  --good: #7be495;
+  --bad: #ff8a78;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--display); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(18px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
+  min-height: 100vh;
+}
+.wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 16px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.logo { font-weight: 800; font-size: 26px; letter-spacing: -0.02em; margin: 0; }
+.logo span { color: var(--teal); }
+.grow { flex: 1; }
+.icon-btn { background: transparent; border: 1px solid var(--cab-edge); border-radius: 999px; padding: 6px 12px; font-size: 14px; color: var(--dim); }
+.icon-btn[aria-pressed="true"] { color: var(--ink); border-color: var(--teal); }
+
+.modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mode {
+  background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 10px 12px; text-align: left;
+  display: grid; gap: 1px;
+}
+.mode .n { font-weight: 800; font-size: 16px; }
+.mode .d { font-size: 13px; color: var(--dim); }
+.mode .pb { font-family: var(--mono); font-size: 12px; color: var(--amber); }
+.mode[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-deep); }
+.mode:disabled { opacity: 0.45; cursor: default; }
+@media (max-width: 520px) { .mode .d { display: none; } }
+
+.cab { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 18px; padding: 12px; display: grid; gap: 12px; }
+.hud { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-family: var(--mono); font-size: 14px; padding: 2px 4px; }
+.hud .stat { display: flex; gap: 6px; align-items: baseline; }
+.hud .label { color: var(--dim); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+.hud .val { font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; }
+.hud .score .val { color: var(--amber); }
+.lives { display: flex; gap: 5px; }
+.life { width: 13px; height: 13px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px color-mix(in srgb, var(--teal) 60%, transparent); }
+.life.lost { background: transparent; border: 2px solid var(--cab-edge); box-shadow: none; }
+.streak { color: var(--amber); }
+
+.screen {
+  background: var(--screen); border-radius: 12px; min-height: 290px; display: grid; place-items: center;
+  padding: 24px 16px; text-align: center; position: relative; overflow: hidden;
+  background-image: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--teal) 10%, transparent), transparent 60%);
+}
+.screen-inner { display: grid; gap: 14px; justify-items: center; width: 100%; max-width: 520px; position: relative; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+.screen h2 { margin: 0; font-size: clamp(24px, 5vw, 32px); font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; }
+.screen p { margin: 0; color: var(--dim); max-width: 46ch; }
+.stim { font-family: var(--mono); font-weight: 800; font-size: clamp(72px, 20vw, 128px); line-height: 1; min-height: 1.05em; color: var(--ink); text-shadow: 0 0 24px color-mix(in srgb, var(--teal) 45%, transparent); }
+.stim.code { font-size: clamp(40px, 11vw, 72px); }
+.stim.pop { animation: pop 160ms ease-out; }
+@keyframes pop { from { transform: scale(0.86); opacity: 0.4; } to { transform: scale(1); opacity: 1; } }
+.dots { display: flex; gap: 6px; justify-content: center; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cab-edge); }
+.dot.on { background: var(--teal); }
+
+.typed { font-family: var(--mono); font-weight: 700; font-size: clamp(32px, 9vw, 46px); letter-spacing: 0.18em; min-height: 1.3em; border-bottom: 2px solid var(--cab-edge); min-width: 6ch; padding: 0 8px; }
+.typed .caret { display: inline-block; width: 0.5ch; background: var(--teal); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: min(100%, 320px); }
+.key { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 12px 0; font-family: var(--mono); font-size: 22px; font-weight: 700; }
+.key:active { transform: translateY(1px); background: var(--teal-deep); }
+.key.ok { background: var(--teal); color: var(--screen); border-color: var(--teal); }
+.key.wide { font-size: 16px; }
+
+.vars { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 10px; width: 100%; }
+.vars label { display: grid; gap: 4px; font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--teal); }
+.vars input { font-family: var(--mono); font-size: 26px; font-weight: 700; text-align: center; padding: 6px; border-radius: 10px; border: 1px solid var(--cab-edge); background: var(--cab); color: var(--ink); width: 100%; }
+
+.go { background: var(--teal); color: var(--screen); border: 0; border-radius: 999px; padding: 12px 26px; font-weight: 800; font-size: 17px; }
+.go.ghost { background: transparent; color: var(--ink); border: 1px solid var(--cab-edge); font-weight: 500; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+.verdict { font-weight: 800; font-size: 34px; }
+.verdict.ok { color: var(--good); }
+.verdict.no { color: var(--bad); }
+.points { font-family: var(--mono); font-weight: 800; color: var(--amber); font-size: 20px; }
+.mono { font-family: var(--mono); }
+.small { font-size: 14px; }
+.flash-ok { animation: flashok 420ms ease-out; }
+.flash-no { animation: flashno 420ms ease-out; }
+@keyframes flashok { from { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--good) 18%, transparent); } to { box-shadow: none; } }
+@keyframes flashno { from { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--bad) 18%, transparent); } to { box-shadow: none; } }
+
+.big { font-family: var(--mono); font-weight: 800; font-size: clamp(56px, 16vw, 88px); line-height: 1; color: var(--amber); }
+.badge { font-family: var(--mono); font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; background: var(--amber); color: var(--screen); padding: 3px 10px; border-radius: 999px; }
+.results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.results div { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 10px; padding: 8px; display: grid; }
+.results .k { font-size: 11px; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; font-family: var(--mono); }
+.results .v { font-family: var(--mono); font-weight: 800; font-size: 22px; }
+
+.info { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 14px; padding: 14px 16px; display: grid; gap: 10px; }
+.info h3 { margin: 0; font-size: 18px; }
+.info p { margin: 0; color: var(--dim); font-size: 15px; max-width: 70ch; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--cab-edge); }
+th { font-family: var(--mono); font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+td.num { font-family: var(--mono); }
+footer { color: var(--dim); font-size: 13px; text-align: center; }
+footer a { color: var(--teal); }
+@media (prefers-reduced-motion: reduce) { .stim.pop, .flash-ok, .flash-no, .typed .caret { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1 class="logo">memory<span>.</span>span</h1>
+    <span class="grow"></span>
+    <button class="icon-btn" id="sound" aria-pressed="false" title="Sound effects">Sound off</button>
+  </div>
+
+  <div class="modes" role="group" aria-label="Game mode">
+    <button class="mode" id="mode-fwd" data-mode="fwd" aria-pressed="true"><span class="n">Digits</span><span class="d">Repeat in order</span><span class="pb" id="pb-fwd">Best: –</span></button>
+    <button class="mode" id="mode-bwd" data-mode="bwd" aria-pressed="false"><span class="n">Reverse</span><span class="d">Repeat backwards</span><span class="pb" id="pb-bwd">Best: –</span></button>
+    <button class="mode" id="mode-ptr" data-mode="ptr" aria-pressed="false"><span class="n">Pointers</span><span class="d">Track changing variables</span><span class="pb" id="pb-ptr">Best: –</span></button>
+  </div>
+
+  <div class="cab">
+    <div class="hud" aria-live="off">
+      <div class="stat"><span class="label">Lives</span><span class="lives" id="lives"></span></div>
+      <span class="grow"></span>
+      <div class="stat"><span class="label">Level</span><span class="val" id="hud-level">–</span></div>
+      <div class="stat score"><span class="label">Score</span><span class="val" id="hud-score">0</span></div>
+      <div class="stat"><span class="label">Streak</span><span class="val streak" id="hud-streak">×1</span></div>
+    </div>
+    <div class="screen" id="screen" aria-live="polite"><div class="screen-inner" id="si"></div></div>
+  </div>
+
+  <div class="info">
+    <h3>How it works</h3>
+    <p>Each round shows a sequence one item at a time. Hold it in your head, then answer. Get it right and the next round is one item longer. Miss and you lose a life. Three lives per game. Correct answers in a row build a streak that multiplies your points.</p>
+    <p>The highest level you clear is your span for that mode. Most adults clear 5 to 8 digits in order and 4 to 6 in reverse. Pointers mode was made for this game and has no published norms, so compare it with your own earlier games. Scores move by about one level from day to day with sleep and focus, so watch the trend rather than a single game.</p>
+  </div>
+
+  <div class="info">
+    <h3>Your recent games</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Mode</th><th>Span</th><th>Score</th></tr></thead>
+        <tbody id="history"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>Saved only in this browser. Made while learning data structures. <a href="https://github.com/and/memory">Source on GitHub</a></footer>
+</div>
+
+<script>
+(() => {
+  const MODES = {
+    fwd: { name: "Digits", start: 3, max: 14, unit: "digits", show: 900, gap: 200 },
+    bwd: { name: "Reverse", start: 2, max: 12, unit: "digits", show: 900, gap: 200 },
+    ptr: { name: "Pointers", start: 2, max: 7, unit: "variables", show: 1300, update: 1700, gap: 300 },
+  };
+  const LETTERS = ["a", "b", "c", "d", "e", "f", "g"];
+  const LIVES = 3;
+  const si = document.getElementById("si");
+  const screen = document.getElementById("screen");
+  let mode = "fwd";
+  let game = null;
+  let timers = [];
+  let keyHandler = null;
+
+  // ---------- storage ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} },
+  };
+  let best = store.get("mspan-best", {});       // { fwd: {span, score}, ... }
+  let history = store.get("mspan-history", []); // [{date, mode, span, score}]
+  let soundOn = store.get("mspan-sound", false);
+
+  // ---------- sound (Web Audio, starts only after a click) ----------
+  let ctx = null;
+  function beep(freq, dur = 0.08, type = "sine", vol = 0.06) {
+    if (!soundOn) return;
+    try {
+      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.value = freq; g.gain.value = vol;
+      o.connect(g); g.connect(ctx.destination);
+      const t = ctx.currentTime;
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur + 0.02);
+    } catch (_) {}
+  }
+  const sfx = {
+    tick: () => beep(660, 0.05, "triangle", 0.035),
+    ok: () => { beep(660, 0.08); setTimeout(() => beep(880, 0.12), 80); },
+    no: () => beep(180, 0.22, "sawtooth", 0.04),
+    over: () => { beep(440, 0.15); setTimeout(() => beep(330, 0.15), 140); setTimeout(() => beep(220, 0.3), 280); },
+  };
+  const soundBtn = document.getElementById("sound");
+  function renderSound() { soundBtn.setAttribute("aria-pressed", String(soundOn)); soundBtn.textContent = soundOn ? "Sound on" : "Sound off"; }
+  soundBtn.onclick = () => { soundOn = !soundOn; store.set("mspan-sound", soundOn); renderSound(); if (soundOn) sfx.ok(); };
+
+  // ---------- helpers ----------
+  const sleep = (ms) => new Promise((r) => timers.push(setTimeout(r, ms)));
+  const rand = (n) => Math.floor(Math.random() * n);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function view(html) { si.innerHTML = html; }
+  function setKeys(fn) { keyHandler = fn; }
+  document.addEventListener("keydown", (e) => { if (keyHandler) keyHandler(e); });
+  function flash(ok) { screen.classList.remove("flash-ok", "flash-no"); void screen.offsetWidth; screen.classList.add(ok ? "flash-ok" : "flash-no"); }
+
+  function digits(n) {
+    const out = [];
+    while (out.length < n) { const d = rand(10); if (out.length && d === out[out.length - 1]) continue; out.push(d); }
+    return out;
+  }
+  function ptrRound(k) {
+    const names = LETTERS.slice(0, k), vals = {}, steps = [];
+    names.forEach((n) => { vals[n] = rand(9) + 1; steps.push({ text: `${n} = ${vals[n]}`, init: true }); });
+    for (let i = 0; i < k + 1; i++) {
+      const t = names[rand(k)];
+      if (k > 1 && Math.random() < 0.55) {
+        let s; do { s = names[rand(k)]; } while (s === t);
+        vals[t] = vals[s]; steps.push({ text: `${t} = ${s}` });
+      } else {
+        let v; do { v = rand(9) + 1; } while (v === vals[t]);
+        vals[t] = v; steps.push({ text: `${t} = ${v}` });
+      }
+    }
+    return { names, steps, answer: { ...vals } };
+  }
+
+  // ---------- HUD ----------
+  function hud() {
+    const lives = document.getElementById("lives");
+    const left = game ? game.lives : LIVES;
+    lives.innerHTML = Array.from({ length: LIVES }, (_, i) => `<span class="life ${i < left ? "" : "lost"}"></span>`).join("");
+    document.getElementById("hud-level").textContent = game ? game.level : "–";
+    document.getElementById("hud-score").textContent = game ? game.score : 0;
+    document.getElementById("hud-streak").textContent = "×" + (game ? mult(game.streak).toFixed(2).replace(/\.?0+$/, "") : 1);
+  }
+  const mult = (streak) => Math.min(3, 1 + 0.25 * Math.max(0, streak - 1));
+  function lockModes(on) { document.querySelectorAll(".mode").forEach((b) => (b.disabled = on)); }
+
+  // ---------- screens ----------
+  function title() {
+    timers.forEach(clearTimeout); timers = []; game = null; lockModes(false); hud();
+    const m = MODES[mode];
+    const how = {
+      fwd: "Digits flash one at a time. Type them back in the same order.",
+      bwd: "Digits flash one at a time. Type them back in reverse: see 3 8 1, type 183.",
+      ptr: "Each variable gets a value, then some change: a = 4 sets a value, b = a copies a's value at that moment. At the end, give every final value.",
+    }[mode];
+    const b = best[mode];
+    view(`<span class="eyebrow">${esc(m.name)} mode</span>
+      <h2>${mode === "ptr" ? "Keep every value current" : "Hold the sequence"}</h2>
+      <p>${how}</p>
+      ${b ? `<p class="mono small">Your best: span ${b.span} · ${b.score} points</p>` : ""}
+      <div class="row"><button class="go" id="play">Play</button></div>
+      <p class="small">Press Enter to start.</p>`);
+    document.getElementById("play").onclick = start;
+    setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); start(); } });
+  }
+
+  function start() {
+    game = { level: MODES[mode].start, lives: LIVES, score: 0, streak: 0, span: 0, rounds: 0 };
+    lockModes(true); hud(); round();
+  }
+
+  async function round() {
+    setKeys(null);
+    const m = MODES[mode], token = (game.token = Symbol());
+    const isPtr = mode === "ptr";
+    const data = isPtr ? ptrRound(game.level) : digits(game.level);
+    const items = isPtr ? data.steps : data;
+    view(`<span class="eyebrow">Level ${game.level} · ${game.level} ${m.unit}</span>
+      <div class="stim ${isPtr ? "code" : ""}" id="stim">&nbsp;</div>
+      <div class="dots">${items.map(() => `<span class="dot"></span>`).join("")}</div>`);
+    const stim = document.getElementById("stim");
+    const dots = si.querySelectorAll(".dot");
+    await sleep(650); if (game?.token !== token) return;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      stim.textContent = isPtr ? it.text : it;
+      stim.classList.remove("pop"); void stim.offsetWidth; stim.classList.add("pop");
+      dots[i].classList.add("on"); sfx.tick();
+      await sleep(isPtr ? (it.init ? m.show : m.update) : m.show); if (game?.token !== token) return;
+      stim.innerHTML = "&nbsp;";
+      await sleep(m.gap); if (game?.token !== token) return;
+    }
+    isPtr ? askPtr(data) : askDigits(data);
+  }
+
+  function askDigits(seq) {
+    const rev = mode === "bwd";
+    let typed = "";
+    view(`<span class="eyebrow">${rev ? "Type it backwards" : "Type it in order"}</span>
+      <div class="typed" id="typed"><span class="caret">&nbsp;</span></div>
+      <div class="pad" id="pad">
+        ${[1,2,3,4,5,6,7,8,9].map((d) => `<button class="key" data-k="${d}">${d}</button>`).join("")}
+        <button class="key wide" data-k="del" aria-label="Delete">⌫</button>
+        <button class="key" data-k="0">0</button>
+        <button class="key ok wide" data-k="ok">Enter</button>
+      </div>`);
+    const out = document.getElementById("typed");
+    const render = () => { out.innerHTML = esc(typed) + `<span class="caret">&nbsp;</span>`; };
+    const press = (k) => {
+      if (k === "del") typed = typed.slice(0, -1);
+      else if (k === "ok") { if (typed.length) submit(); return; }
+      else if (typed.length < 16) typed += k;
+      render();
+    };
+    const submit = () => {
+      const want = (rev ? [...seq].reverse() : seq).join("");
+      result(typed === want, `Answer <span class="mono">${want}</span> · you typed <span class="mono">${esc(typed)}</span>`);
+    };
+    document.getElementById("pad").onclick = (e) => { const b = e.target.closest("[data-k]"); if (b) press(b.dataset.k); };
+    setKeys((e) => {
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); press(e.key); }
+      else if (e.key === "Backspace") { e.preventDefault(); press("del"); }
+      else if (e.key === "Enter") { e.preventDefault(); press("ok"); }
+    });
+  }
+
+  function askPtr(data) {
+    view(`<span class="eyebrow">Final values</span>
+      <form id="f" style="display:grid;gap:14px;justify-items:center;width:100%">
+        <div class="vars">${data.names.map((n) => `<label for="v-${n}">${n}<input id="v-${n}" inputmode="numeric" maxlength="2" autocomplete="off"></label>`).join("")}</div>
+        <button class="go" type="submit">Check</button>
+      </form>`);
+    const first = document.getElementById("v-a"); first.focus();
+    const inputs = data.names.map((n) => document.getElementById("v-" + n));
+    inputs.forEach((inp, i) => inp.addEventListener("input", () => { if (inp.value.length >= 1 && inputs[i + 1]) inputs[i + 1].focus(); }));
+    setKeys(null);
+    document.getElementById("f").onsubmit = (e) => {
+      e.preventDefault();
+      const ok = data.names.every((n) => Number(document.getElementById("v-" + n).value) === data.answer[n]);
+      const truth = data.names.map((n) => `${n}=${data.answer[n]}`).join(" ");
+      const typed = data.names.map((n) => `${n}=${document.getElementById("v-" + n).value.trim() || "?"}`).join(" ");
+      const seq = data.steps.map((s) => s.text).join("  →  ");
+      result(ok, `Answer <span class="mono">${truth}</span> · you typed <span class="mono">${esc(typed)}</span><br><span class="mono small">${esc(seq)}</span>`);
+    };
+  }
+
+  function result(ok, detail) {
+    const m = MODES[mode];
+    game.rounds++;
+    let pts = 0;
+    if (ok) {
+      game.streak++;
+      pts = Math.round(game.level * 10 * mult(game.streak));
+      game.score += pts;
+      game.span = Math.max(game.span, game.level);
+      sfx.ok();
+    } else {
+      game.streak = 0; game.lives--; sfx.no();
+    }
+    flash(ok); hud();
+    const over = game.lives <= 0;
+    const maxed = ok && game.level >= m.max;
+    view(`<div class="verdict ${ok ? "ok" : "no"}">${ok ? "Correct" : "Missed"}</div>
+      ${ok ? `<div class="points">+${pts}</div>` : `<p>${game.lives} ${game.lives === 1 ? "life" : "lives"} left</p>`}
+      <p class="small">${detail}</p>
+      <div class="row"><button class="go" id="next">${over || maxed ? "See results" : ok ? "Level " + (game.level + 1) : "Try level " + game.level + " again"}</button></div>
+      <p class="small">Press Enter to continue.</p>`);
+    const next = () => {
+      if (over || maxed) return gameOver();
+      if (ok) game.level++;
+      hud(); round();
+    };
+    document.getElementById("next").onclick = next;
+    setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); next(); } });
+  }
+
+  function gameOver() {
+    sfx.over();
+    const m = MODES[mode];
+    const prev = best[mode];
+    const newSpan = !prev || game.span > prev.span;
+    const newScore = !prev || game.score > prev.score;
+    best[mode] = { span: Math.max(game.span, prev?.span || 0), score: Math.max(game.score, prev?.score || 0) };
+    store.set("mspan-best", best);
+    history.unshift({ date: new Date().toISOString().slice(0, 10), mode, span: game.span, score: game.score });
+    history = history.slice(0, 50); store.set("mspan-history", history);
+    renderBest(); renderHistory();
+    const g = game; game = null; lockModes(false); hud();
+    view(`<span class="eyebrow">${esc(m.name)} · game over</span>
+      ${(newScore || newSpan) && g.score > 0 ? `<span class="badge">${newSpan ? "New best span" : "New high score"}</span>` : ""}
+      <div class="big">${g.score}</div>
+      <div class="results">
+        <div><span class="k">Span</span><span class="v">${g.span || "–"}</span></div>
+        <div><span class="k">Rounds</span><span class="v">${g.rounds}</span></div>
+        <div><span class="k">Best span</span><span class="v">${best[mode].span || "–"}</span></div>
+      </div>
+      <p>${g.span ? `You held ${g.span} ${m.unit}. ` : ""}${spanNote(mode, g.span)}</p>
+      <div class="row"><button class="go" id="again">Play again</button><button class="go ghost" id="copy">Copy result</button></div>`);
+    document.getElementById("again").onclick = start;
+    document.getElementById("copy").onclick = async (e) => {
+      const text = `memory.span · ${m.name}: span ${g.span}, ${g.score} points`;
+      try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; }
+      catch (_) { e.target.textContent = text; }
+    };
+    setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); start(); } });
+  }
+
+  function spanNote(m, s) {
+    if (!s) return "Try again when you're settled; the first level is short.";
+    if (m === "fwd") return s >= 8 ? "That's above the usual range." : s >= 5 ? "That's in the usual adult range of 5 to 8." : "That's below the usual range today; tiredness costs a digit or two.";
+    if (m === "bwd") return s >= 7 ? "That's above the usual range." : s >= 4 ? "That's in the usual adult range of 4 to 6." : "That's below the usual range today; reversing is hard when tired.";
+    return "Pointers has no published norms; beat your own best.";
+  }
+
+  function renderBest() {
+    for (const k of Object.keys(MODES)) {
+      const b = best[k];
+      document.getElementById("pb-" + k).textContent = b ? `Best: span ${b.span} · ${b.score}` : "Best: –";
+    }
+  }
+  function renderHistory() {
+    const body = document.getElementById("history");
+    body.innerHTML = history.length
+      ? history.slice(0, 10).map((r) => `<tr><td class="num">${r.date}</td><td>${esc(MODES[r.mode]?.name || r.mode)}</td><td class="num">${r.span}</td><td class="num">${r.score}</td></tr>`).join("")
+      : `<tr><td colspan="4" style="color:var(--dim)">Your games will show up here.</td></tr>`;
+  }
+
+  document.querySelectorAll(".mode").forEach((b) => (b.onclick = () => {
+    if (game) return;
+    mode = b.dataset.mode;
+    document.querySelectorAll(".mode").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    title();
+  }));
+
+  renderSound(); renderBest(); renderHistory(); title();
+})();
+</script>
+</body>
+</html>
