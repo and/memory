@@ -28,6 +28,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   let history = store.get("mspan-history", []);
   let soundOn = store.get("mspan-sound", false);
   let player = store.get("mspan-player", null);   // { id, token, nickname }
+  let sharePublic = store.get("mspan-public", null); // true = public leaderboard, false = offline, null = not chosen yet
 
   // ---------- sound ----------
   let actx = null;
@@ -75,7 +76,8 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     if (!res.ok) { const e = new Error(data.error || `Server error ${res.status}`); e.status = res.status; throw e; }
     return data;
   }
-  const online = () => !!API;
+  const online = () => !!API;                                   // a leaderboard server exists
+  const sharing = () => online() && sharePublic === true && !!player; // this player's games go to it
 
   // ---------- nicknames ----------
   const ADJ = ["Brave", "Calm", "Clever", "Swift", "Bright", "Gentle", "Lucky", "Mellow", "Nimble", "Quiet", "Sunny", "Witty", "Bold", "Cosmic", "Curious", "Daring", "Eager", "Fuzzy", "Happy", "Jolly", "Keen", "Lively", "Merry", "Noble", "Plucky", "Quick", "Snappy", "Steady", "Tidy", "Zesty", "Breezy", "Cheery"];
@@ -84,10 +86,35 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
 
   function renderWho() {
     const el = $("who");
-    if (!online() || !player) { el.hidden = true; return; }
+    if (!online() || sharePublic === null) { el.hidden = true; return; }
     el.hidden = false;
-    el.innerHTML = `Playing as <b>${esc(player.nickname)}</b> <button class="linkbtn" id="rename">Change name</button>`;
-    $("rename").onclick = () => { if (!game) nameScreen(true); };
+    if (sharing()) {
+      el.innerHTML = `On the public leaderboard as <b>${esc(player.nickname)}</b> <button class="linkbtn" id="rename">Change name</button> <button class="linkbtn" id="go-off">Play offline instead</button>`;
+      $("rename").onclick = () => { if (!game) nameScreen(true); };
+      $("go-off").onclick = () => { if (!game) setSharing(false); };
+    } else {
+      el.innerHTML = `Playing offline: your games stay in this browser. <button class="linkbtn" id="go-on">Join the leaderboard</button>`;
+      $("go-on").onclick = () => { if (!game) setSharing(true); };
+    }
+  }
+  function setSharing(on) {
+    sharePublic = on; store.set("mspan-public", on);
+    if (on && !player) return nameScreen();
+    renderWho(); loadBoard(); title();
+  }
+
+  // First visit: public leaderboard or offline?
+  function choiceScreen() {
+    clear(); lockModes(true); setKeys(null);
+    view(`<span class="eyebrow">Before you play</span>
+      <h2>How do you want to play?</h2>
+      <div class="choices">
+        <button class="choice" id="pick-public"><span class="t">Public leaderboard</span><span class="s">You get a random nickname. Your scores, and nothing else, appear on the leaderboard.</span></button>
+        <button class="choice" id="pick-offline"><span class="t">Offline</span><span class="s">Nothing is sent anywhere. Your history stays in this browser.</span></button>
+      </div>
+      <p class="small">You can switch at any time.</p>`);
+    $("pick-public").onclick = () => setSharing(true);
+    $("pick-offline").onclick = () => setSharing(false);
   }
 
   // First visit (or "Change name"): suggest a name, let the player shuffle or type one.
@@ -117,16 +144,18 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
           player = await api("/api/player", { body: { nickname: name } });
         }
         store.set("mspan-player", player);
+        sharePublic = true; store.set("mspan-public", true);
         renderWho(); loadBoard(); title();
       } catch (e) {
         if (e.status === 409 && !changing && name === suggestion) { suggestion = makeName(); $("nick").textContent = suggestion; err.textContent = "That one was taken, so here's another."; return; }
-        if (e.network) { err.innerHTML = `${esc(e.message)} <button class="linkbtn" id="offline">Play offline instead</button>`; $("offline").onclick = () => title(); return; }
+        if (e.network) { err.innerHTML = `${esc(e.message)} <button class="linkbtn" id="offline">Play offline instead</button>`; $("offline").onclick = () => setSharing(false); return; }
         err.textContent = e.message;
       }
     };
     $("keep").onclick = () => save(suggestion);
     $("own").onsubmit = (e) => { e.preventDefault(); const v = $("own-name").value.trim(); if (v) save(v); };
     if (changing) $("cancel").onclick = () => title();
+    else { const back = document.createElement("button"); back.className = "linkbtn"; back.textContent = "Play offline instead"; back.onclick = () => setSharing(false); si.appendChild(back); }
     setKeys(null);
   }
 
@@ -206,7 +235,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       ${b ? `<p class="mono small">Your best: span ${b.span} · ${b.score} points</p>` : ""}
       ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
       <div class="row"><button class="go" id="play">Play</button></div>
-      <p class="small">${online() && player ? "Counts on the leaderboard. " : ""}Press Enter to start.</p>`);
+      <p class="small">${sharing() ? "Counts on the public leaderboard. " : "Offline: this game stays in your browser. "}Press Enter to start.</p>`);
     $("play").onclick = start;
     setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); start(); } });
   }
@@ -214,7 +243,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   async function start() {
     setKeys(null);
     view(`<span class="eyebrow">Starting…</span>`);
-    let engine = online() && player ? remoteEngine(mode) : localEngine(mode);
+    let engine = sharing() ? remoteEngine(mode) : localEngine(mode);
     let first;
     try { first = await engine.start(); }
     catch (e) {
@@ -222,7 +251,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       if (e.network) { engine = localEngine(mode); first = await engine.start(); }
       else return title(e.message);
     }
-    game = { engine, state: first.state, round: first.round, offlineFallback: online() && !engine.online };
+    game = { engine, state: first.state, round: first.round, offlineFallback: sharing() && !engine.online };
     lockModes(true); hud(); play();
   }
 
@@ -319,7 +348,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
 
   function gameOver() {
     sfx.over();
-    const m = MODES[mode], g = game.state, rank = game.rank, counted = game.engine.online;
+    const m = MODES[mode], g = game.state, rank = game.rank, counted = game.engine.online, fellBack = game.offlineFallback;
     const prev = best[mode];
     const newSpan = !prev || g.span > prev.span;
     const newScore = !prev || g.score > prev.score;
@@ -338,7 +367,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
         <div><span class="k">Best span</span><span class="v">${best[mode].span || "–"}</span></div>
       </div>
       <p>${g.span ? `You held ${g.span} ${m.unit}. ` : ""}${spanNote(mode, g.span)}</p>
-      ${!counted && online() ? `<p class="small">Played offline, so this game isn't on the leaderboard.</p>` : ""}
+      ${fellBack ? `<p class="small">The leaderboard server couldn't be reached, so this game isn't on it.</p>` : ""}
       <div class="row"><button class="go" id="again">Play again</button><button class="go ghost" id="copy">Copy result</button></div>`);
     $("again").onclick = start;
     $("copy").onclick = async (e) => {
@@ -378,6 +407,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       body.innerHTML = r.entries.length
         ? r.entries.map((x) => `<tr class="${x.you ? "you" : ""}"><td class="num">${x.rank}</td><td>${esc(x.nickname)}${x.you ? " (you)" : ""}</td><td class="num">${x.span}</td><td class="num">${x.score}</td><td class="num">${x.date}</td></tr>`).join("")
         : `<tr><td colspan="5" style="color:var(--dim)">No scores yet in ${esc(MODES[boardMode].name)}. Be the first.</td></tr>`;
+      if (sharePublic === false) body.innerHTML += `<tr><td colspan="5" style="color:var(--dim)">You're playing offline, so your games aren't listed here.</td></tr>`;
     } catch (e) {
       body.innerHTML = `<tr><td colspan="5" style="color:var(--dim)">${esc(e.message)}</td></tr>`;
     }
@@ -398,5 +428,8 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   }));
 
   renderSound(); renderBest(); renderHistory(); renderWho(); loadBoard();
-  if (online() && !player) nameScreen(); else title();
+  if (!online()) title();
+  else if (sharePublic === null) choiceScreen();
+  else if (sharePublic && !player) nameScreen();
+  else title();
 })();
