@@ -252,6 +252,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     }[mode];
     view(`<div class="intro"><h2 class="title">${esc(m.name)}${info(`<p>${how}</p>
         <p>Each right answer adds one item. A miss costs a life; you have ${LIVES}. Answers in a row multiply your points.</p>
+        <p>Your <b>span</b> is the longest sequence you get right.</p>
         <p>${ranked ? "<b>Live</b> games go on the public leaderboard." : "<b>Practice</b> is offline: nothing is sent. The graphs under each mode track your progress."}</p>
         <p>Press Enter to start.</p>`, "How to play")}</h2>
       <p>${short}</p></div>
@@ -385,7 +386,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       ${(newScore || newSpan) && g.score > 0 ? `<span class="badge">${newSpan ? "New best span" : "New high score"}</span>` : ""}
       <div class="big">${g.score}</div>
       <div class="results">
-        <div><span class="k">Span ${info(`<p>${g.span ? `You held ${g.span} ${m.unit}. ` : ""}${spanNote(mode, g.span)}</p>`, "About your span")}</span><span class="v">${g.span || "–"}</span></div>
+        <div><span class="k">Span ${info(`<p>Span is the longest sequence you got right.</p><p>${g.span ? `You held ${g.span} ${m.unit}. ` : ""}${spanNote(mode, g.span)}</p>`, "About your span")}</span><span class="v">${g.span || "–"}</span></div>
         <div><span class="k">${counted ? "Rank" : "Rounds"}</span><span class="v">${counted ? (rank ? "#" + rank : "–") : g.rounds}</span></div>
         <div><span class="k">Best span</span><span class="v">${best[mode].span || "–"}</span></div>
       </div>
