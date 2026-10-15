@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS players (
   id          TEXT PRIMARY KEY,
   nickname    TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  name_key    TEXT UNIQUE,  -- lookalike-proof form of the nickname, see nameKey() in src/index.js
   token_hash  TEXT NOT NULL,
   created_at  INTEGER NOT NULL
 );

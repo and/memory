@@ -26,6 +26,8 @@ Run these from this `worker` folder. You need Node.js.
    npx wrangler d1 execute memory-span --remote --file=schema.sql
    ```
 
+   A database created before October 2026 also needs `migrations/0001_name_key.sql` run the same way, once, before deploying this version.
+
 4. **Deploy the Worker.**
 
    ```

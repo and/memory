@@ -36,6 +36,12 @@ function cleanNickname(raw) {
   return { name };
 }
 
+// Lookalike-proof key: case, spaces, - and _ are ignored, 0 counts as o, and
+// 1, i and l count as one letter. Two names with the same key can't both
+// exist. The SQL in migrations/0001_name_key.sql must give the same result.
+const nameKey = (name) => name.toLowerCase().replace(/[ _-]/g, "").replace(/0/g, "o").replace(/[1i]/g, "l");
+const TAKEN = "That name is taken, or too close to one that is.";
+
 // ---------- rounds ----------
 function makeRound(mode, level) {
   if (mode === "ptr") {
@@ -113,10 +119,10 @@ export default {
         if (c.error) return json(h, 400, { error: c.error });
         const id = randomId(16), token = randomId(32);
         try {
-          await env.DB.prepare("INSERT INTO players (id, nickname, token_hash, created_at) VALUES (?, ?, ?, ?)")
-            .bind(id, c.name, await sha256(token), now()).run();
+          await env.DB.prepare("INSERT INTO players (id, nickname, name_key, token_hash, created_at) VALUES (?, ?, ?, ?, ?)")
+            .bind(id, c.name, nameKey(c.name), await sha256(token), now()).run();
         } catch (e) {
-          if (String(e).includes("UNIQUE")) return json(h, 409, { error: "That name is taken." });
+          if (String(e).includes("UNIQUE")) return json(h, 409, { error: TAKEN });
           throw e;
         }
         return json(h, 200, { id, token, nickname: c.name });
@@ -129,9 +135,9 @@ export default {
         const c = cleanNickname(body.nickname);
         if (c.error) return json(h, 400, { error: c.error });
         try {
-          await env.DB.prepare("UPDATE players SET nickname = ? WHERE id = ?").bind(c.name, p.id).run();
+          await env.DB.prepare("UPDATE players SET nickname = ?, name_key = ? WHERE id = ?").bind(c.name, nameKey(c.name), p.id).run();
         } catch (e) {
-          if (String(e).includes("UNIQUE")) return json(h, 409, { error: "That name is taken." });
+          if (String(e).includes("UNIQUE")) return json(h, 409, { error: TAKEN });
           throw e;
         }
         return json(h, 200, { nickname: c.name });
