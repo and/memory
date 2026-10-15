@@ -136,12 +136,6 @@ td.num { font-family: var(--mono); }
 .who b { color: var(--ink); font-family: var(--mono); }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--teal); text-decoration: underline; font-size: 14px; }
 .name-input { font-family: var(--mono); font-size: 20px; text-align: center; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--cab-edge); background: var(--cab); color: var(--ink); width: min(100%, 320px); }
-.choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
-@media (max-width: 520px) { .choices { grid-template-columns: 1fr; } }
-.choice { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 14px; text-align: left; display: grid; gap: 4px; }
-.choice:hover { border-color: var(--teal); }
-.choice .t { font-weight: 800; font-size: 17px; }
-.choice .s { color: var(--dim); font-size: 14px; }
 .err { color: var(--bad); font-size: 14px; min-height: 1.4em; }
 .nick { font-family: var(--mono); font-weight: 800; font-size: clamp(26px, 7vw, 36px); color: var(--amber); }
 .board-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
