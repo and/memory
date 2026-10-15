@@ -28,7 +28,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   let history = store.get("mspan-history", []);
   let soundOn = store.get("mspan-sound", false);
   let player = store.get("mspan-player", null);   // { id, token, nickname }
-  let ranked = !!API;     // true = Play (server, public leaderboard), false = Practice (offline)
+  let ranked = !!API && store.get("mspan-live", false); // view: true = Live (server, public leaderboard), false = Practice (offline, own stats)
 
   // ---------- sound ----------
   let actx = null;
@@ -100,7 +100,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
 
   function renderWho() {
     const el = $("who");
-    if (!online() || !player) { el.hidden = true; return; }
+    if (!ranked || !player) { el.hidden = true; return; }
     el.hidden = false;
     el.innerHTML = `On the leaderboard as <b>${esc(player.nickname)}</b> <button class="linkbtn" id="rename">Change name</button>`;
     $("rename").onclick = () => { if (!game) nameScreen(true); };
@@ -136,14 +136,14 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
         changing ? title() : start(true);
       } catch (e) {
         if (e.status === 409 && !changing && name === suggestion) { suggestion = makeName(); $("nick").textContent = suggestion; err.textContent = "That one was taken, so here's another."; return; }
-        if (e.network) { err.innerHTML = `${esc(e.message)} <button class="linkbtn" id="offline">Practice instead</button>`; $("offline").onclick = () => start(false); return; }
+        if (e.network) { err.innerHTML = `${esc(e.message)} <button class="linkbtn" id="offline">Practice instead</button>`; $("offline").onclick = () => setView(false); return; }
         err.textContent = e.message;
       }
     };
     $("keep").onclick = () => save(suggestion);
     $("own").onsubmit = (e) => { e.preventDefault(); const v = $("own-name").value.trim(); if (v) save(v); };
     if (changing) $("cancel").onclick = () => title();
-    else { const back = document.createElement("button"); back.className = "linkbtn"; back.textContent = "Practice instead"; back.onclick = () => start(false); si.appendChild(back); }
+    else { const back = document.createElement("button"); back.className = "linkbtn"; back.textContent = "Practice instead"; back.onclick = () => setView(false); si.appendChild(back); }
     setKeys(null);
   }
 
@@ -204,7 +204,22 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     $("hud-score").textContent = s ? s.score : 0;
     $("hud-streak").textContent = "×" + (s ? String(+mult(s.streak).toFixed(2)) : 1);
   }
-  function lockModes(on) { document.querySelectorAll(".mode").forEach((b) => (b.disabled = on)); }
+  function lockModes(on) { document.querySelectorAll(".mode, #view-seg button").forEach((b) => (b.disabled = on)); }
+
+  // Practice (offline, your own progress graphs) or Live (server games, public leaderboard).
+  function setView(live) {
+    ranked = live && online(); store.set("mspan-live", ranked);
+    renderView(); title();
+  }
+  function renderView() {
+    $("view-seg").hidden = !online();
+    document.querySelectorAll("#view-seg button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.view === "live") === ranked)));
+    $("board-panel").hidden = !ranked;
+    document.querySelectorAll(".prog").forEach((p) => (p.hidden = ranked));
+    renderWho();
+    ranked ? loadBoard() : renderProgress();
+  }
+  document.querySelectorAll("#view-seg button").forEach((b) => (b.onclick = () => { if (!game) setView(b.dataset.view === "live"); }));
   function clear() { timers.forEach(clearTimeout); timers = []; game = null; hud(); }
 
   // ---------- screens ----------
@@ -218,30 +233,27 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     }[mode];
     view(`<h2>${esc(m.name)} ${info(`<p>${how}</p>
         <p>Each right answer adds one item. A miss costs a life; you have ${LIVES}. Answers in a row multiply your points.</p>
-        ${online() ? `<p><b>Play</b> puts your score on the public leaderboard. <b>Practice</b> is offline: nothing is sent.</p>` : ""}
-        <p>Press Enter to ${ranked ? "play" : "practice"}.</p>`, "How to play")}</h2>
+        <p>${ranked ? "<b>Live</b> games go on the public leaderboard." : "<b>Practice</b> is offline: nothing is sent. The graphs under each mode track your progress."}</p>
+        <p>Press Enter to start.</p>`, "How to play")}</h2>
       ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
-      <div class="row">${online()
-        ? `<button class="go ghost" id="practice">Practice</button><button class="go" id="play">Play</button>`
-        : `<button class="go" id="practice">Practice</button>`}</div>`);
-    $("practice").onclick = () => start(false);
-    if (online()) $("play").onclick = () => start(true);
+      <div class="row"><button class="go" id="go">${ranked ? "Play live" : "Practice"}</button></div>`);
+    $("go").onclick = () => start(ranked);
     setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); start(ranked); } });
   }
 
-  // Play: rounds come from the server and the game goes on the leaderboard.
+  // Live: rounds come from the server and the game goes on the leaderboard.
   // Practice: rounds are made here and nothing is sent.
-  async function start(r) {
-    ranked = r && online();
-    if (ranked && !player) return nameScreen();
+  async function start(live) {
+    live = live && online();
+    if (live && !player) return nameScreen();
     setKeys(null);
     view(`<span class="eyebrow">Starting…</span>`);
-    const engine = ranked ? remoteEngine(mode) : localEngine(mode);
+    const engine = live ? remoteEngine(mode) : localEngine(mode);
     let first;
     try { first = await engine.start(); }
     catch (e) {
       if (e.status === 401) { player = null; store.set("mspan-player", null); renderWho(); return nameScreen(); }
-      return title(e.network ? `${e.message} Try again, or practice offline.` : e.message);
+      return title(e.network ? `${e.message} Try again, or switch to Practice.` : e.message);
     }
     game = { engine, state: first.state, round: first.round };
     lockModes(true); hud(); play();
@@ -347,7 +359,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     store.set("mspan-best", best);
     history.unshift({ date: new Date().toISOString().slice(0, 10), mode, span: g.span, score: g.score, ranked: counted });
     history = history.slice(0, 300); store.set("mspan-history", history);
-    renderBest(); renderProgress(); if (counted) loadBoard();
+    renderBest(); counted ? loadBoard() : renderProgress();
     clear(); lockModes(false);
     view(`<span class="eyebrow">${esc(m.name)}${counted ? "" : " · practice"} · game over</span>
       ${(newScore || newSpan) && g.score > 0 ? `<span class="badge">${newSpan ? "New best span" : "New high score"}</span>` : ""}
@@ -383,7 +395,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   }
 
   // Progress under each mode card: a few numbers, then span per game (oldest on the left).
-  // Filled dots are Play games, hollow dots are Practice.
+  // Filled dots are Live games, hollow dots are Practice.
   const avgSpan = (a) => a.reduce((s, r) => s + r.span, 0) / a.length;
   const tip = document.createElement("div");
   tip.className = "tip"; tip.hidden = true; document.body.appendChild(tip);
@@ -402,7 +414,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
           <div><span class="k">Trend</span><span class="v ${dir}">${trend}</span></div>
           ${info(`<p>${games.length} ${games.length === 1 ? "game" : "games"} in ${MODES[k].name}.</p>
             <p><b>Avg</b>: average span of your last 10 games.<br><b>Trend</b>: last 5 games compared with the 5 before.</p>
-            <p>The graph shows your span per game, oldest on the left. Filled dots are Play games, hollow dots are Practice.</p>`, `${MODES[k].name} progress`)}
+            <p>The graph shows your span per game, oldest on the left. Filled dots are Live games, hollow dots are Practice.</p>`, `${MODES[k].name} progress`)}
         </div>`;
       drawChart(el, games);
     }
@@ -438,7 +450,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       let i = 0; xs.forEach((v, j) => { if (Math.abs(v - x) < Math.abs(xs[i] - x)) i = j; });
       cross.setAttribute("x1", xs[i]); cross.setAttribute("x2", xs[i]); cross.setAttribute("visibility", "visible");
       circles.forEach((c, j) => c.classList.toggle("hot", j === i));
-      const p = pts[i], kind = p.ranked === false ? "Practice" : p.ranked ? "Play" : "";
+      const p = pts[i], kind = p.ranked === false ? "Practice" : p.ranked ? "Live" : "";
       tip.innerHTML = `<span class="d">${p.date}${kind ? " · " + kind : ""}</span><br>Span <b>${p.span}</b> · ${p.score} pts`;
       tip.hidden = false;
       const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -451,19 +463,29 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     svg.addEventListener("pointerleave", hide);
   }
   let resizeFrame = 0;
-  addEventListener("resize", () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(renderProgress); });
+  addEventListener("resize", () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(() => { if (!ranked) renderProgress(); }); });
   addEventListener("scroll", () => { tip.hidden = true; }, { passive: true });
   let boardMode = "fwd";
   async function loadBoard() {
     const body = $("board");
     if (!online()) { body.innerHTML = `<tr><td colspan="5" style="color:var(--dim)">The leaderboard isn't connected yet. Games are saved in this browser only.</td></tr>`; return; }
     body.innerHTML = `<tr><td colspan="5" style="color:var(--dim)">Loading…</td></tr>`;
+    const want = boardMode, total = want === "total";
+    $("board-head").innerHTML = total
+      ? `<tr><th>#</th><th>Player</th><th>Total</th><th>Modes</th></tr>`
+      : `<tr><th>#</th><th>Player</th><th>Span</th><th>Score</th><th>Date</th></tr>`;
     try {
-      const r = await api(`/api/leaderboard?mode=${boardMode}`);
+      const r = await api(`/api/leaderboard?mode=${want}`);
+      if (want !== boardMode) return; // another tab was picked while this loaded
+      const who = (x) => `<td class="num">${x.rank}</td><td>${esc(x.nickname)}${x.you ? " (you)" : ""}</td>`;
+      const breakdown = (x) => Object.keys(MODES).map((k) => `${MODES[k].name} ${x.scores[k] ?? "–"}`).join(" · ");
       body.innerHTML = r.entries.length
-        ? r.entries.map((x) => `<tr class="${x.you ? "you" : ""}"><td class="num">${x.rank}</td><td>${esc(x.nickname)}${x.you ? " (you)" : ""}</td><td class="num">${x.span}</td><td class="num">${x.score}</td><td class="num">${x.date}</td></tr>`).join("")
-        : `<tr><td colspan="5" style="color:var(--dim)">No scores yet in ${esc(MODES[boardMode].name)}. Be the first.</td></tr>`;
+        ? r.entries.map((x) => total
+          ? `<tr class="${x.you ? "you" : ""}" title="${esc(breakdown(x))}">${who(x)}<td class="num">${x.total}</td><td class="num">${x.modes}/3</td></tr>`
+          : `<tr class="${x.you ? "you" : ""}">${who(x)}<td class="num">${x.span}</td><td class="num">${x.score}</td><td class="num">${x.date}</td></tr>`).join("")
+        : `<tr><td colspan="5" style="color:var(--dim)">No scores yet${total ? "" : ` in ${esc(MODES[want].name)}`}. Be the first.</td></tr>`;
     } catch (e) {
+      if (want !== boardMode) return;
       body.innerHTML = `<tr><td colspan="5" style="color:var(--dim)">${esc(e.message)}</td></tr>`;
     }
   }
@@ -479,9 +501,9 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     document.querySelectorAll(".mode").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
     boardMode = mode;
     document.querySelectorAll("#board-tabs button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.mode === mode)));
-    loadBoard(); title();
+    if (ranked) loadBoard(); title();
   }));
 
-  renderSound(); renderBest(); renderProgress(); renderWho(); loadBoard();
+  renderSound(); renderBest(); renderView();
   title();
 })();

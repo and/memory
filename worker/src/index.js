@@ -201,6 +201,31 @@ export default {
         return json(h, 200, { ok, correct, points, over: false, state: { level, lives, score, streak, span, rounds }, round: publicRound(g.mode, level, r) });
       }
 
+      // Total leaderboard: each player's best game per mode (the one the mode
+      // boards show), added up across modes.
+      if (req.method === "GET" && path === "/api/leaderboard" && url.searchParams.get("mode") === "total") {
+        const { results } = await env.DB.prepare(`
+          WITH best AS (
+            SELECT player_id, mode, score,
+                   ROW_NUMBER() OVER (PARTITION BY player_id, mode ORDER BY span DESC, score DESC, ended_at ASC) AS rn
+            FROM games WHERE status = 'over' AND span > 0
+          )
+          SELECT p.nickname, b.player_id, SUM(b.score) AS total, COUNT(*) AS modes,
+                 SUM(CASE WHEN b.mode = 'fwd' THEN b.score END) AS fwd,
+                 SUM(CASE WHEN b.mode = 'bwd' THEN b.score END) AS bwd,
+                 SUM(CASE WHEN b.mode = 'ptr' THEN b.score END) AS ptr
+          FROM best b JOIN players p ON p.id = b.player_id
+          WHERE b.rn = 1
+          GROUP BY b.player_id
+          ORDER BY total DESC, p.created_at ASC
+          LIMIT 20`).all();
+        const me = await auth(env, req);
+        return json(h, 200, {
+          mode: "total",
+          entries: results.map((r, i) => ({ rank: i + 1, nickname: r.nickname, total: r.total, modes: r.modes, scores: { fwd: r.fwd, bwd: r.bwd, ptr: r.ptr }, you: !!me && me.id === r.player_id })),
+        });
+      }
+
       // Leaderboard: each player's best game per mode.
       if (req.method === "GET" && path === "/api/leaderboard") {
         const mode = url.searchParams.get("mode");

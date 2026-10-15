@@ -18,9 +18,9 @@ Pointers mode was made for this game. It is the closest to tracing pointers in a
 
 ## Notes
 
-- Two ways to start a game. **Play** counts on the public leaderboard. **Practice** runs offline: rounds are made in the browser, nothing is sent, and the score never reaches the leaderboard.
+- A switch next to the title picks the view. **Practice** runs offline: rounds are made in the browser, nothing is sent, and a graph under each mode tracks your progress. **Live** games count on the public leaderboard, which has a tab per mode plus a **Total** tab (each player's best game in every mode, added up).
 - The leaderboard runs on a small Cloudflare Worker that creates every round and checks every answer, so scores can't be made up in the browser. Setup is in [worker/README.md](worker/README.md). Without it, only Practice is available and history stays in `localStorage`.
-- The first time someone presses Play, they get a random, work-safe nickname (like "Swift Otter 42") that they can keep, shuffle or replace. They can change it later.
+- The first time someone plays a Live game, they get a random, work-safe nickname (like "Swift Otter 42") that they can keep, shuffle or replace. They can change it later.
 - Digit span is modelled on the standard clinical task (one digit per second, adding one each level), but this is a game, not a clinical test. Scores vary by about one level from day to day.
 - No build step: `index.html` and `game.js`.
 

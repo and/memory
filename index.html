@@ -47,6 +47,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .grow { flex: 1; }
 .icon-btn { background: transparent; border: 1px solid var(--cab-edge); border-radius: 999px; padding: 6px 12px; font-size: 14px; color: var(--dim); }
 .icon-btn[aria-pressed="true"] { color: var(--ink); border-color: var(--teal); }
+.seg { display: inline-flex; background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg[hidden], .info[hidden], .prog[hidden] { display: none; }
+.seg button { background: transparent; border: 0; border-radius: 999px; padding: 5px 14px; font-size: 14px; font-weight: 500; color: var(--dim); display: inline-flex; align-items: center; gap: 6px; }
+.seg button[aria-pressed="true"] { background: var(--teal-deep); color: var(--ink); }
+.seg button:disabled { cursor: default; opacity: 0.6; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.seg button[aria-pressed="true"] .live-dot { background: var(--good); box-shadow: 0 0 8px var(--good); }
 
 .modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .mode {
@@ -179,6 +186,10 @@ footer a { color: var(--teal); }
 <div class="wrap">
   <div class="top">
     <h1 class="logo">memory<span>.</span>span</h1>
+    <div class="seg" id="view-seg" role="group" aria-label="Practice or live" hidden>
+      <button data-view="practice" aria-pressed="true" title="Offline. Your own stats.">Practice</button>
+      <button data-view="live" aria-pressed="false" title="Online. Public leaderboard."><span class="live-dot"></span>Live</button>
+    </div>
     <span class="grow"></span>
     <button class="icon-btn" id="sound" aria-pressed="false" title="Sound effects">Sound off</button>
   </div>
@@ -211,19 +222,20 @@ footer a { color: var(--teal); }
     <div class="screen" id="screen" aria-live="polite"><div class="screen-inner" id="si"></div></div>
   </div>
 
-  <div class="info" id="board-panel">
+  <div class="info" id="board-panel" hidden>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <h3 style="margin:0">Leaderboard <details class="hint"><summary aria-label="About the leaderboard" title="About the leaderboard">i</summary><div class="pop"><p>Every round is made and checked on the server, so these scores were earned one round at a time.</p><p>Each player's best Play game per mode counts. Practice games never appear here.</p></div></details></h3>
+      <h3 style="margin:0">Leaderboard <details class="hint"><summary aria-label="About the leaderboard" title="About the leaderboard">i</summary><div class="pop"><p>Every round is made and checked on the server, so these scores were earned one round at a time.</p><p>Each player's best Play game per mode counts. <b>Total</b> adds up those best games across Digits, Reverse and Pointers.</p><p>Practice games never appear here.</p></div></details></h3>
       <span class="grow"></span>
       <div class="board-tabs" id="board-tabs">
         <button data-mode="fwd" aria-pressed="true">Digits</button>
         <button data-mode="bwd" aria-pressed="false">Reverse</button>
         <button data-mode="ptr" aria-pressed="false">Pointers</button>
+        <button data-mode="total" aria-pressed="false">Total</button>
       </div>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Player</th><th>Span</th><th>Score</th><th>Date</th></tr></thead>
+        <thead id="board-head"><tr><th>#</th><th>Player</th><th>Span</th><th>Score</th><th>Date</th></tr></thead>
         <tbody id="board"></tbody>
       </table>
     </div>
@@ -232,6 +244,6 @@ footer a { color: var(--teal); }
   <footer><a href="https://github.com/and/memory">Source on GitHub</a></footer>
 </div>
 
-<script src="game.js"></script>
+<script src="game.js?v=5"></script>
 </body>
 </html>
