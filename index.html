@@ -5,12 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Memory Span</title>
 <meta name="description" content="A memory game that finds how many things you can hold in your head: digits, digits backwards, and changing variables like pointers in code.">
+<script>
+  // Pick the theme before the page paints: saved choice, else the system setting.
+  try { document.documentElement.dataset.theme = localStorage.getItem("mspan-theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); } catch (_) {}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=JetBrains+Mono:wght@500;700;800&display=swap">
 <style>
 /* Layout: one arcade cabinet. HUD strip on top, the stimulus window in the middle,
-   keypad below. Single dark look on purpose: it is a game screen. */
+   keypad below. Dark by default; light theme below, picked by the toggle or the system. */
 :root {
   color-scheme: dark;
   --bg: #0b1211;
@@ -24,8 +28,26 @@
   --amber: #ffbf5a;
   --good: #7be495;
   --bad: #ff8a78;
+  --on-teal: #050a09;
+  --shadow: rgb(0 0 0 / 0.4);
   --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef3f1;
+  --cab: #ffffff;
+  --cab-edge: #d3dfdb;
+  --screen: #f6faf9;
+  --ink: #10201d;
+  --dim: #566a65;
+  --teal: #0b7d72;
+  --teal-deep: #d6efeb;
+  --amber: #a35c00;
+  --good: #1b7f3d;
+  --bad: #c03a2a;
+  --on-teal: #ffffff;
+  --shadow: rgb(16 32 29 / 0.14);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -47,6 +69,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .grow { flex: 1; }
 .icon-btn { background: transparent; border: 1px solid var(--cab-edge); border-radius: 999px; padding: 6px 12px; font-size: 14px; color: var(--dim); }
 .icon-btn[aria-pressed="true"] { color: var(--ink); border-color: var(--teal); }
+.sound-btn { position: relative; }
+.sound-btn[aria-pressed="false"]::after { content: ""; position: absolute; width: 18px; height: 1.5px; background: currentColor; transform: rotate(-45deg); }
+.theme-btn { width: 34px; height: 34px; padding: 0; font-size: 17px; line-height: 1; display: inline-grid; place-items: center; }
 .seg { display: inline-flex; background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 999px; padding: 3px; gap: 2px; }
 .seg[hidden], .info[hidden], .prog[hidden] { display: none; }
 .seg button { background: transparent; border: 0; border-radius: 999px; padding: 5px 14px; font-size: 14px; font-weight: 500; color: var(--dim); display: inline-flex; align-items: center; gap: 6px; }
@@ -88,7 +113,7 @@ details.hint { display: inline-block; position: relative; vertical-align: middle
 details.hint summary { list-style: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--cab-edge); color: var(--dim); font: italic 700 11px/1 Georgia, serif; cursor: pointer; }
 details.hint summary::-webkit-details-marker { display: none; }
 details.hint summary:hover, details.hint[open] summary { color: var(--ink); border-color: var(--teal); }
-details.hint .pop { position: fixed; z-index: 20; width: min(280px, calc(100vw - 16px)); background: var(--screen); border: 1px solid var(--cab-edge); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; text-align: left; font-family: var(--display); font-size: 14px; font-weight: 400; line-height: 1.45; color: var(--dim); box-shadow: 0 8px 24px rgb(0 0 0 / 0.4); }
+details.hint .pop { position: fixed; z-index: 20; width: min(280px, calc(100vw - 16px)); background: var(--screen); border: 1px solid var(--cab-edge); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; text-align: left; font-family: var(--display); font-size: 14px; font-weight: 400; line-height: 1.45; color: var(--dim); box-shadow: 0 8px 24px var(--shadow); }
 details.hint .pop p { margin: 0; color: var(--dim); max-width: none; font-size: 14px; }
 details.hint .pop b { color: var(--ink); }
 .tip { position: fixed; z-index: 10; pointer-events: none; background: var(--screen); border: 1px solid var(--cab-edge); border-radius: 8px; padding: 6px 9px; font-family: var(--mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--ink); }
@@ -113,7 +138,11 @@ details.hint .pop b { color: var(--ink); }
 }
 .screen-inner { display: grid; gap: 14px; justify-items: center; width: 100%; max-width: 520px; position: relative; }
 .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
-.screen h2 { margin: 0; font-size: clamp(24px, 5vw, 32px); font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; }
+.screen h2 { margin: 0; font-size: clamp(24px, 5vw, 32px); font-weight: 800; letter-spacing: -0.01em; line-height: 1.15; text-wrap: balance; }
+.intro { display: grid; gap: 6px; justify-items: center; margin-bottom: 8px; }
+.title { display: inline-flex; align-items: center; gap: 8px; }
+.title details.hint { display: flex; margin-top: 2px; }
+.title details.hint summary { display: grid; }
 .screen p { margin: 0; color: var(--dim); max-width: 46ch; }
 .stim { font-family: var(--mono); font-weight: 800; font-size: clamp(72px, 20vw, 128px); line-height: 1; min-height: 1.05em; color: var(--ink); text-shadow: 0 0 24px color-mix(in srgb, var(--teal) 45%, transparent); }
 .stim.code { font-size: clamp(40px, 11vw, 72px); }
@@ -130,14 +159,14 @@ details.hint .pop b { color: var(--ink); }
 .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: min(100%, 320px); }
 .key { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 12px 0; font-family: var(--mono); font-size: 22px; font-weight: 700; }
 .key:active { transform: translateY(1px); background: var(--teal-deep); }
-.key.ok { background: var(--teal); color: var(--screen); border-color: var(--teal); }
+.key.ok { background: var(--teal); color: var(--on-teal); border-color: var(--teal); }
 .key.wide { font-size: 16px; }
 
 .vars { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 10px; width: 100%; }
 .vars label { display: grid; gap: 4px; font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--teal); }
 .vars input { font-family: var(--mono); font-size: 26px; font-weight: 700; text-align: center; padding: 6px; border-radius: 10px; border: 1px solid var(--cab-edge); background: var(--cab); color: var(--ink); width: 100%; }
 
-.go { background: var(--teal); color: var(--screen); border: 0; border-radius: 999px; padding: 12px 26px; font-weight: 800; font-size: 17px; }
+.go { background: var(--teal); color: var(--on-teal); border: 0; border-radius: 999px; padding: 12px 26px; font-weight: 800; font-size: 17px; }
 .go.ghost { background: transparent; color: var(--ink); border: 1px solid var(--cab-edge); font-weight: 500; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
@@ -153,7 +182,7 @@ details.hint .pop b { color: var(--ink); }
 @keyframes flashno { from { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--bad) 18%, transparent); } to { box-shadow: none; } }
 
 .big { font-family: var(--mono); font-weight: 800; font-size: clamp(56px, 16vw, 88px); line-height: 1; color: var(--amber); }
-.badge { font-family: var(--mono); font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; background: var(--amber); color: var(--screen); padding: 3px 10px; border-radius: 999px; }
+.badge { font-family: var(--mono); font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; background: var(--amber); color: var(--on-teal); padding: 3px 10px; border-radius: 999px; }
 .results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
 .results div { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 10px; padding: 8px; display: grid; }
 .results .k { font-size: 11px; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; font-family: var(--mono); }
@@ -167,7 +196,10 @@ table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-nu
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--cab-edge); }
 th { font-family: var(--mono); font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
 td.num { font-family: var(--mono); }
-.who { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--dim); }
+.who { display: flex; gap: 6px; align-items: center; min-width: 0; font-size: 14px; color: var(--dim); white-space: nowrap; }
+.who[hidden] { display: none; }
+.who b { overflow: hidden; text-overflow: ellipsis; }
+.who .linkbtn { text-decoration: none; font-size: 15px; padding: 2px 4px; }
 .who b { color: var(--ink); font-family: var(--mono); }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--teal); text-decoration: underline; font-size: 14px; }
 .name-input { font-family: var(--mono); font-size: 20px; text-align: center; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--cab-edge); background: var(--cab); color: var(--ink); width: min(100%, 320px); }
@@ -190,11 +222,12 @@ footer a { color: var(--teal); }
       <button data-view="practice" aria-pressed="true" title="Offline. Your own stats.">Practice</button>
       <button data-view="live" aria-pressed="false" title="Online. Public leaderboard."><span class="live-dot"></span>Live</button>
     </div>
+    <div class="who" id="who" hidden></div>
     <span class="grow"></span>
-    <button class="icon-btn" id="sound" aria-pressed="false" title="Sound effects">Sound off</button>
+    <button class="icon-btn theme-btn" id="theme" title="Switch theme"></button>
+    <button class="icon-btn theme-btn sound-btn" id="sound" aria-pressed="false" aria-label="Sound effects" title="Sound off">♪</button>
   </div>
 
-  <div class="who" id="who" hidden></div>
 
   <div class="modes" role="group" aria-label="Game mode">
     <div class="mode-col">
@@ -244,6 +277,6 @@ footer a { color: var(--teal); }
   <footer><a href="https://github.com/and/memory">Source on GitHub</a></footer>
 </div>
 
-<script src="game.js?v=6"></script>
+<script src="game.js?v=9"></script>
 </body>
 </html>

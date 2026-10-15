@@ -49,8 +49,22 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     over: () => { beep(440, 0.15); setTimeout(() => beep(330, 0.15), 140); setTimeout(() => beep(220, 0.3), 280); },
   };
   const soundBtn = $("sound");
-  function renderSound() { soundBtn.setAttribute("aria-pressed", String(soundOn)); soundBtn.textContent = soundOn ? "Sound on" : "Sound off"; }
+  function renderSound() { soundBtn.setAttribute("aria-pressed", String(soundOn)); soundBtn.title = soundOn ? "Sound on" : "Sound off"; }
   soundBtn.onclick = () => { soundOn = !soundOn; store.set("mspan-sound", soundOn); renderSound(); if (soundOn) sfx.ok(); };
+
+  // ---------- theme ----------
+  const themeBtn = $("theme"), root = document.documentElement;
+  function renderTheme() {
+    const light = root.dataset.theme === "light";
+    themeBtn.textContent = light ? "☾" : "☀\uFE0E";
+    themeBtn.setAttribute("aria-label", light ? "Switch to dark mode" : "Switch to light mode");
+  }
+  themeBtn.onclick = () => {
+    root.dataset.theme = root.dataset.theme === "light" ? "dark" : "light";
+    try { localStorage.setItem("mspan-theme", root.dataset.theme); } catch (_) {} // plain string: the <head> script reads it
+    renderTheme();
+  };
+  renderTheme();
 
   // ---------- helpers ----------
   const sleep = (ms) => new Promise((r) => timers.push(setTimeout(r, ms)));
@@ -102,7 +116,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     const el = $("who");
     if (!ranked || !player) { el.hidden = true; return; }
     el.hidden = false;
-    el.innerHTML = `On the leaderboard as <b>${esc(player.nickname)}</b> <button class="linkbtn" id="rename">Change name</button>`;
+    el.innerHTML = `as <b>${esc(player.nickname)}</b><button class="linkbtn" id="rename" aria-label="Change name" title="Change name">✎</button>`;
     $("rename").onclick = () => { if (!game) nameScreen(true); };
   }
 
@@ -236,11 +250,11 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       bwd: "Remember the digits. Type them backwards.",
       ptr: "Track the variables. Give each final value.",
     }[mode];
-    view(`<h2>${esc(m.name)} ${info(`<p>${how}</p>
+    view(`<div class="intro"><h2 class="title">${esc(m.name)}${info(`<p>${how}</p>
         <p>Each right answer adds one item. A miss costs a life; you have ${LIVES}. Answers in a row multiply your points.</p>
         <p>${ranked ? "<b>Live</b> games go on the public leaderboard." : "<b>Practice</b> is offline: nothing is sent. The graphs under each mode track your progress."}</p>
         <p>Press Enter to start.</p>`, "How to play")}</h2>
-      <p>${short}</p>
+      <p>${short}</p></div>
       ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
       <div class="row"><button class="go" id="go">${ranked ? "Play live" : "Practice"}</button></div>`);
     $("go").onclick = () => start(ranked);
