@@ -43,6 +43,16 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       o.start(t); o.stop(t + dur + 0.02);
     } catch (_) {}
   }
+  // Line icons, one stroke style, drawn in currentColor.
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${d}</svg>`;
+  const ICON = {
+    sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>'),
+    moon: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
+    soundOn: svg('<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6a8 8 0 0 1 0 12"/>'),
+    soundOff: svg('<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>'),
+    pencil: svg('<path d="M15.5 4.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/>'),
+    back: svg('<path d="M21 6H9l-6 6 6 6h12z"/><path d="m12 9.5 5 5M17 9.5l-5 5"/>'),
+  };
   const sfx = {
     tick: () => beep(660, 0.05, "triangle", 0.035),
     ok: () => { beep(660, 0.08); setTimeout(() => beep(880, 0.12), 80); },
@@ -50,14 +60,17 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     over: () => { beep(440, 0.15); setTimeout(() => beep(330, 0.15), 140); setTimeout(() => beep(220, 0.3), 280); },
   };
   const soundBtn = $("sound");
-  function renderSound() { soundBtn.setAttribute("aria-pressed", String(soundOn)); soundBtn.title = soundOn ? "Sound on" : "Sound off"; }
+  function renderSound() {
+    soundBtn.setAttribute("aria-pressed", String(soundOn)); soundBtn.title = soundOn ? "Sound on" : "Sound off";
+    soundBtn.innerHTML = soundOn ? ICON.soundOn : ICON.soundOff;
+  }
   soundBtn.onclick = () => { soundOn = !soundOn; store.set("mspan-sound", soundOn); renderSound(); if (soundOn) sfx.ok(); };
 
   // ---------- theme ----------
   const themeBtn = $("theme"), root = document.documentElement;
   function renderTheme() {
     const light = root.dataset.theme === "light";
-    themeBtn.textContent = light ? "☾" : "☀\uFE0E";
+    themeBtn.innerHTML = light ? ICON.moon : ICON.sun;
     themeBtn.setAttribute("aria-label", light ? "Switch to dark mode" : "Switch to light mode");
   }
   themeBtn.onclick = () => {
@@ -123,7 +136,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     const el = $("who");
     if (!ranked || !player) { el.hidden = true; return; }
     el.hidden = false;
-    el.innerHTML = `as <b>${esc(player.nickname)}</b><button class="linkbtn" id="rename" aria-label="Change name" title="Change name">✎</button>`;
+    el.innerHTML = `as <b>${esc(player.nickname)}</b><button class="linkbtn" id="rename" aria-label="Change name" title="Change name">${ICON.pencil}</button>`;
     $("rename").onclick = () => { if (!game) nameScreen(true); };
   }
 
@@ -296,13 +309,13 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       bwd: "Digits flash one at a time. Type them back in reverse: see 3 8 1, type 183.",
       ptr: "Each variable gets a value, then some change: a = 4 sets a value, b = a copies a's value at that moment. At the end, give every final value.",
     }[mode];
-    view(`<div class="intro"><h2 class="title">${esc(m.name)}${info(`<p>${how}</p>
+    view(`<div class="start"><h2 class="title">${esc(m.name)}${info(`<p>${how}</p>
         <p>Each right answer adds one item. A miss costs a life; you have ${LIVES}. Answers in a row multiply your points.</p>
         <p>Your <b>span</b> is the longest sequence you get right.</p>
         <p>${ranked ? "<b>Live</b> games go on the public leaderboard." : "<b>Practice</b> is offline: nothing is sent. The graphs under each mode track your progress."}</p>
-        <p>Press Enter to start.</p>`, "How to play")}</h2></div>
+        <p>Press Enter to start.</p>`, "How to play")}</h2>
       ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
-      <div class="row"><button class="go" id="go">${ranked ? "Play live" : "Practice"}</button></div>`);
+      <button class="go" id="go">${ranked ? "Play live" : "Practice"}</button></div>`);
     $("go").onclick = () => start(ranked);
     setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); start(ranked); } });
   }
@@ -353,7 +366,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       <div class="typed" id="typed"><span class="caret">&nbsp;</span></div>
       <div class="pad" id="pad">
         ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => `<button class="key" data-k="${d}">${d}</button>`).join("")}
-        <button class="key wide" data-k="del" aria-label="Delete">⌫</button>
+        <button class="key wide" data-k="del" aria-label="Delete">${ICON.back}</button>
         <button class="key" data-k="0">0</button>
         <button class="key ok wide" data-k="ok">Enter</button>
       </div>`);
