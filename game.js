@@ -296,17 +296,11 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       bwd: "Digits flash one at a time. Type them back in reverse: see 3 8 1, type 183.",
       ptr: "Each variable gets a value, then some change: a = 4 sets a value, b = a copies a's value at that moment. At the end, give every final value.",
     }[mode];
-    const short = {
-      fwd: "Remember the digits. Type them in order.",
-      bwd: "Remember the digits. Type them backwards.",
-      ptr: "Track the variables. Give each final value.",
-    }[mode];
     view(`<div class="intro"><h2 class="title">${esc(m.name)}${info(`<p>${how}</p>
         <p>Each right answer adds one item. A miss costs a life; you have ${LIVES}. Answers in a row multiply your points.</p>
         <p>Your <b>span</b> is the longest sequence you get right.</p>
         <p>${ranked ? "<b>Live</b> games go on the public leaderboard." : "<b>Practice</b> is offline: nothing is sent. The graphs under each mode track your progress."}</p>
-        <p>Press Enter to start.</p>`, "How to play")}</h2>
-      <p>${short}</p></div>
+        <p>Press Enter to start.</p>`, "How to play")}</h2></div>
       ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
       <div class="row"><button class="go" id="go">${ranked ? "Play live" : "Practice"}</button></div>`);
     $("go").onclick = () => start(ranked);
@@ -470,7 +464,8 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   function renderBest() {
     for (const k of Object.keys(MODES)) {
       const b = best[k];
-      $("pb-" + k).textContent = b ? `Best span ${b.span}` : "Best span –";
+      $("pb-" + k).hidden = !b; // unplayed games show only their name and task
+      $("pb-" + k).textContent = b ? `Best span ${b.span}` : "";
     }
   }
 

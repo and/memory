@@ -85,19 +85,24 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
 .seg button[aria-pressed="true"] .live-dot { background: var(--good); box-shadow: 0 0 8px var(--good); }
 
-.modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pick { display: grid; gap: 8px; }
+.pick-h { margin: 0; font-size: 14px; font-weight: 600; color: var(--dim); }
+.modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; column-gap: 8px; }
 .mode {
   background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 10px 12px; text-align: left;
-  display: grid; gap: 1px;
+  display: grid; gap: 2px; align-content: start;
 }
 .mode .n { font-weight: 700; font-size: 16px; }
-.mode .pb { font-size: 13px; font-weight: 600; color: var(--amber); }
+.mode .task { font-size: 13px; color: var(--dim); line-height: 1.3; }
+.mode .pb { margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--amber); }
 .mode[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-deep); }
+.mode[aria-pressed="true"] .task { color: var(--ink); } /* dim misses 4.5:1 on teal-deep in dark mode */
 .mode:disabled { opacity: 0.45; cursor: default; }
 
 /* Progress under each mode card */
-.mode-col { display: grid; gap: 6px; align-content: start; min-width: 0; }
-.prog { background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 8px 10px 6px; display: grid; gap: 4px; min-width: 0; }
+/* Subgrid: the three cards share one row height, the panels share the next. */
+.mode-col { display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: 0; min-width: 0; }
+.prog { margin-top: 6px; background: var(--cab); border: 1px solid var(--cab-edge); border-radius: 12px; padding: 8px 10px 6px; display: grid; gap: 4px; min-width: 0; }
 .prog { position: relative; }
 .prog .stats { display: flex; justify-content: space-between; gap: 6px; padding-right: 24px; }
 .prog .stats details.hint { position: absolute; top: 7px; right: 7px; }
@@ -243,20 +248,23 @@ footer a { color: var(--teal); }
   </div>
 
 
-  <div class="modes" role="group" aria-label="Game mode">
+  <section class="pick" aria-labelledby="pick-h">
+  <h2 class="pick-h" id="pick-h">Choose a game</h2>
+  <div class="modes" role="group" aria-labelledby="pick-h">
     <div class="mode-col">
-      <button class="mode" id="mode-fwd" data-mode="fwd" aria-pressed="true"><span class="n">Digits</span><span class="pb" id="pb-fwd">Best span –</span></button>
+      <button class="mode" id="mode-fwd" data-mode="fwd" aria-pressed="true"><span class="n">Digits</span><span class="task">Repeat digits in order</span><span class="pb" id="pb-fwd" hidden></span></button>
       <div class="prog" id="prog-fwd"></div>
     </div>
     <div class="mode-col">
-      <button class="mode" id="mode-bwd" data-mode="bwd" aria-pressed="false"><span class="n">Reverse</span><span class="pb" id="pb-bwd">Best span –</span></button>
+      <button class="mode" id="mode-bwd" data-mode="bwd" aria-pressed="false"><span class="n">Reverse</span><span class="task">Repeat digits backwards</span><span class="pb" id="pb-bwd" hidden></span></button>
       <div class="prog" id="prog-bwd"></div>
     </div>
     <div class="mode-col">
-      <button class="mode" id="mode-ptr" data-mode="ptr" aria-pressed="false"><span class="n">Pointers</span><span class="pb" id="pb-ptr">Best span –</span></button>
+      <button class="mode" id="mode-ptr" data-mode="ptr" aria-pressed="false"><span class="n">Pointers</span><span class="task">Track variables</span><span class="pb" id="pb-ptr" hidden></span></button>
       <div class="prog" id="prog-ptr"></div>
     </div>
   </div>
+  </section>
 
   <div class="cab">
     <div class="hud" aria-live="off">
@@ -299,6 +307,6 @@ footer a { color: var(--teal); }
   <footer><a href="https://github.com/and/memory">Source on GitHub</a></footer>
 </div>
 
-<script src="game.js?v=14"></script>
+<script src="game.js?v=15"></script>
 </body>
 </html>
