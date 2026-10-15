@@ -309,15 +309,65 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       bwd: "Digits flash one at a time. Type them back in reverse: see 3 8 1, type 183.",
       ptr: "Each variable gets a value, then some change: a = 4 sets a value, b = a copies a's value at that moment. At the end, give every final value.",
     }[mode];
-    view(`<div class="start"><h2 class="title">${esc(m.name)}${info(`<p>${how}</p>
+    view(`<div class="start"><div class="start-main"><h2 class="title">${esc(m.name)}${info(`<p>${how}</p>
         <p>Each right answer adds one item. A miss costs a life; you have ${LIVES}. Answers in a row multiply your points.</p>
         <p>Your <b>span</b> is the longest sequence you get right.</p>
         <p>${ranked ? "<b>Live</b> games go on the public leaderboard." : "<b>Practice</b> is offline: nothing is sent. The graphs under each mode track your progress."}</p>
         <p>Press Enter to start.</p>`, "How to play")}</h2>
       ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
-      <button class="go" id="go">${ranked ? "Play live" : "Practice"}</button></div>`);
+      <button class="go" id="go">${ranked ? "Play live" : "Practice"}</button></div>
+      <div class="demo" id="demo" aria-hidden="true"></div></div>`);
+    demo($("demo"), mode);
     $("go").onclick = () => start(ranked);
     setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); start(ranked); } });
+  }
+
+  // Start-screen demo: plays two short rounds of the chosen game on a loop,
+  // so the rules show without reading. Decorative for screen readers (the
+  // info popover has the rules). It stops by itself once its element leaves
+  // the page. With reduced motion it shows one finished round, still.
+  const DEMO_PTR = { steps: ["a = 4", "b = a", "a = 9"], vals: { a: 9, b: 4 } }; // b keeps a's old value
+  async function demo(el, m) {
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    // Every frame has the same three rows (label, main, footer) so nothing jumps.
+    const draw = (label, main, foot = "") => {
+      el.innerHTML = `<div class="demo-label">${label}</div><div class="demo-main">${main}</div><div class="demo-foot">${foot}</div>`;
+    };
+    const slots = (vals, n, names) => `<div class="demo-slots">${Array.from({ length: n }, (_, i) =>
+      `${names ? `<span class="demo-var">${names[i]}</span>` : ""}<span class="demo-slot${i < vals.length ? " on" : ""}">${i < vals.length ? vals[i] : ""}</span>`).join("")}</div>`;
+    const ok = `<span class="demo-ok">Correct</span>`;
+    // One round: show the items, then type the answer into the slots.
+    const round = async (items, answer, names) => {
+      const head = m === "ptr" ? "Final values" : m === "bwd" ? "Type it backwards" : "Type it in order";
+      const seen = m === "bwd" ? `<span class="demo-seen">saw ${items.join(" ")}</span>` : "";
+      if (still) { draw(head, slots(answer, answer.length, names), seen || ok); return false; }
+      for (const it of items) {
+        draw("Watch", `<div class="demo-stim${m === "ptr" ? " code" : ""}">${esc(it)}</div>`);
+        await wait(m === "ptr" ? 1300 : 750); if (!el.isConnected) return false;
+        draw("Watch", "");
+        await wait(200); if (!el.isConnected) return false;
+      }
+      for (let i = 0; i <= answer.length; i++) {
+        draw(head, slots(answer.slice(0, i), answer.length, names), seen);
+        await wait(i === 0 ? 700 : 380); if (!el.isConnected) return false;
+      }
+      draw(head, slots(answer, answer.length, names), ok);
+      await wait(1500);
+      return el.isConnected;
+    };
+    for (;;) {
+      if (m === "ptr") {
+        const { steps, vals } = DEMO_PTR;
+        if (!(await round(steps, Object.values(vals), Object.keys(vals)))) return;
+      } else {
+        for (const n of [3, 4]) { // two rounds: a right answer adds a digit
+          let d; do { d = makeDigits(n); } while (d.join("") === [...d].reverse().join("")); // a palindrome hides the reversal
+          if (!(await round(d, m === "bwd" ? [...d].reverse() : d))) return;
+        }
+      }
+      await wait(900); if (!el.isConnected) return;
+    }
   }
 
   // Live: rounds come from the server and the game goes on the leaderboard.

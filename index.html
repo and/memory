@@ -160,6 +160,26 @@ details.hint .pop b { color: var(--ink); }
 /* Start screen: left-aligned, lined up with the HUD text above it. */
 .start { justify-self: stretch; display: grid; gap: 16px; justify-items: start; text-align: left; }
 .screen-inner:has(> .start) { max-width: none; }
+.start { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: center; gap: 24px; }
+.start-main { display: grid; gap: 16px; justify-items: start; }
+/* The demo: a quiet replay of one round, to the right of the start button. */
+.demo { justify-self: stretch; align-self: stretch; display: grid; grid-template-rows: auto 64px 22px; align-content: center; justify-items: center; gap: 10px; min-height: 190px; padding-left: 24px; border-left: 1px solid var(--cab-edge); }
+.demo-label { font-size: 13px; font-weight: 600; color: var(--dim); }
+.demo-main { display: grid; place-items: center; }
+.demo-stim { font-family: var(--mono); font-weight: 700; font-size: 52px; line-height: 1; }
+.demo-stim.code { font-size: 32px; }
+.demo-seen { font-family: var(--mono); font-size: 13px; color: var(--dim); }
+.demo-slots { display: flex; gap: 6px; align-items: center; }
+.demo-slot { width: 34px; height: 42px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-weight: 700; font-size: 22px; }
+.demo-slot.on { border-color: var(--teal); }
+.demo-var { font-family: var(--mono); font-weight: 700; color: var(--teal); margin-left: 6px; }
+.demo-var:first-child { margin-left: 0; }
+.demo-ok { font-size: 14px; font-weight: 700; color: var(--good); }
+@media (max-width: 560px) {
+  .start { grid-template-columns: 1fr; gap: 18px; }
+  .demo { min-height: 0; grid-template-rows: auto 52px 20px; gap: 8px; padding: 16px 0 0; border-left: 0; border-top: 1px solid var(--cab-edge); }
+  .demo-stim { font-size: 44px; }
+}
 .title { display: inline-flex; align-items: center; gap: 8px; }
 .title details.hint { display: flex; margin-top: 2px; }
 .title details.hint summary { display: grid; }
@@ -308,6 +328,6 @@ footer a { color: var(--teal); }
   <footer><a href="https://github.com/and/memory">Source on GitHub</a></footer>
 </div>
 
-<script src="game.js?v=16"></script>
+<script src="game.js?v=17"></script>
 </body>
 </html>
