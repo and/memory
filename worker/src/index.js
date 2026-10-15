@@ -201,6 +201,22 @@ export default {
         return json(h, 200, { ok, correct, points, over: false, state: { level, lives, score, streak, span, rounds }, round: publicRound(g.mode, level, r) });
       }
 
+      // End a game early: it counts with the score so far, the same as a game
+      // the player walks away from. Ending a game that's already over just
+      // returns its final state.
+      if (req.method === "POST" && path === "/api/game/end") {
+        const p = await auth(env, req);
+        if (!p) return json(h, 401, { error: "Sign-in expired. Reload the page." });
+        const g = await env.DB.prepare("SELECT * FROM games WHERE id = ? AND player_id = ?").bind(String(body.gameId || ""), p.id).first();
+        if (!g) return json(h, 404, { error: "No such game." });
+        if (g.status === "active") {
+          await env.DB.prepare("UPDATE games SET status = 'over', ended_at = ?, answer = NULL WHERE id = ?").bind(now(), g.id).run();
+        }
+        const { level, lives, score, streak, span, rounds } = g;
+        const rank = span > 0 ? await rankFor(env, g.mode, p.id) : null;
+        return json(h, 200, { state: { level, lives, score, streak, span, rounds }, rank });
+      }
+
       // Total leaderboard: each player's best game per mode (the one the mode
       // boards show), added up across modes.
       if (req.method === "GET" && path === "/api/leaderboard" && url.searchParams.get("mode") === "total") {

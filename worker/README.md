@@ -46,6 +46,7 @@ Run these from this `worker` folder. You need Node.js.
 | `POST /api/player/name` | Changes the nickname |
 | `POST /api/game/start` | Starts a game and returns the first round |
 | `POST /api/game/answer` | Checks the answer and returns the next round, or the final result and rank |
+| `POST /api/game/end` | Ends a game early; it counts with the score so far |
 | `GET /api/leaderboard?mode=fwd` | Top 20, each player's best game in that mode |
 | `GET /api/leaderboard?mode=total` | Top 20 by total: each player's best game in every mode, added up |
 

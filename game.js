@@ -89,7 +89,13 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   const closeInfo = (except) => document.querySelectorAll("details.hint[open]").forEach((d) => { if (d !== except) d.open = false; });
   document.addEventListener("toggle", (e) => { if (e.target.matches?.("details.hint") && e.target.open) { closeInfo(e.target); placePop(e.target); } }, true);
   document.addEventListener("click", (e) => { if (!e.target.closest("details.hint")) closeInfo(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeInfo(); });
+  // Escape closes an open popover first; otherwise it asks to end the game, or cancels that.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (document.querySelector("details.hint[open]")) closeInfo();
+    else if (confirming) cancelEnd();
+    else if (game) askEnd();
+  });
   addEventListener("scroll", () => closeInfo(), { passive: true });
 
   // ---------- server ----------
@@ -200,6 +206,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
         if (ok) st.level++;
         return { ok, correct, points, over, state: { ...st }, round: deal() };
       },
+      async end() { return { state: { ...st } }; },
     };
   }
   function remoteEngine(m) {
@@ -208,6 +215,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       online: true,
       async start() { const r = await api("/api/game/start", { body: { mode: m } }); gameId = r.gameId; return r; },
       async answer(a) { return api("/api/game/answer", { body: { gameId, answer: a } }); },
+      async end() { return api("/api/game/end", { body: { gameId } }); },
     };
   }
 
@@ -218,6 +226,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     $("hud-level").textContent = s ? s.level : "–";
     $("hud-score").textContent = s ? s.score : 0;
     $("hud-streak").textContent = "×" + (s ? String(+mult(s.streak).toFixed(2)) : 1);
+    renderEnd();
   }
   function lockModes(on) { document.querySelectorAll(".mode, #view-seg button").forEach((b) => (b.disabled = on)); }
 
@@ -234,8 +243,49 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     renderWho();
     ranked ? loadBoard() : renderProgress();
   }
-  document.querySelectorAll("#view-seg button").forEach((b) => (b.onclick = () => { if (!game) setView(b.dataset.view === "live"); }));
-  function clear() { timers.forEach(clearTimeout); timers = []; game = null; hud(); }
+  document.querySelectorAll("#view-seg button").forEach((b) => (b.onclick = () => {
+    const live = b.dataset.view === "live";
+    if (live !== ranked) askEnd(() => setView(live));
+  }));
+  function clear() { timers.forEach(clearTimeout); timers = []; game = null; confirming = false; afterEnd = null; hud(); }
+
+  // ---------- ending a game early ----------
+  // A Live game ends on the server and counts with the score so far, so it
+  // asks first. A Practice game just stops. `then` runs after the game ends
+  // (switching mode or view); without it the results screen shows.
+  let confirming = false, afterEnd = null;
+  function renderEnd() {
+    $("end").hidden = !game || game.ending || game.over || confirming;
+    $("end-ask").hidden = !confirming;
+    if (confirming) $("end-ask-text").textContent = game.state.span
+      ? `End this game? It counts on the leaderboard with ${game.state.score} points.`
+      : "End this game? Nothing has scored yet.";
+  }
+  function askEnd(then = null) {
+    if (!game) return then?.();
+    if (game.ending) return;
+    afterEnd = then;
+    if (!game.engine.online || game.over) return endGame(); // nothing left to lose
+    confirming = true; renderEnd();
+  }
+  function cancelEnd() { confirming = false; afterEnd = null; renderEnd(); }
+  async function endGame() {
+    const g = game, then = afterEnd;
+    confirming = false; afterEnd = null; g.ending = true; renderEnd();
+    g.token = null; timers.forEach(clearTimeout); timers = []; // stops the sequence mid-play
+    setKeys(null);
+    view(`<span class="eyebrow">Ending…</span>`);
+    if (!g.over) {
+      try { const res = await g.engine.end(); g.state = res.state; g.rank = res.rank; }
+      catch (_) {} // the server closes it anyway when the next game in this mode starts
+    }
+    if (game !== g) return;
+    if (then) { record(!g.over); clear(); lockModes(false); then(); }
+    else gameOver(!g.over);
+  }
+  $("end").onclick = () => askEnd();
+  $("end-yes").onclick = () => endGame();
+  $("end-no").onclick = cancelEnd;
 
   // ---------- screens ----------
   function title(msg = "") {
@@ -268,7 +318,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   async function start(live) {
     live = live && online();
     if (live && !player) return nameScreen();
-    setKeys(null);
+    setKeys(null); lockModes(true); // until the first round is here
     view(`<span class="eyebrow">Starting…</span>`);
     const engine = live ? remoteEngine(mode) : localEngine(mode);
     let first;
@@ -278,7 +328,7 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
       return title(e.network ? `${e.message} Try again, or switch to Practice.` : e.message);
     }
     game = { engine, state: first.state, round: first.round };
-    lockModes(true); hud(); play();
+    lockModes(false); hud(); play();
   }
 
   async function play() {
@@ -351,15 +401,16 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   async function submit(answer, typedHtml) {
     setKeys(null);
     view(`<span class="eyebrow">Checking…</span>`);
+    const g = game;
     let res;
-    try { res = await game.engine.answer(answer); }
-    catch (e) { return title(e.message + " This game couldn't be saved."); }
-    result(res, typedHtml);
+    try { res = await g.engine.answer(answer); }
+    catch (e) { return game === g && !g.ending ? title(e.message + " This game couldn't be saved.") : undefined; }
+    if (game === g && !g.ending) result(res, typedHtml); // unless the player ended the game meanwhile
   }
 
   function result(res, typedHtml) {
     const { ok, correct, points, over } = res;
-    game.state = res.state; game.round = res.round; game.rank = res.rank;
+    game.state = res.state; game.round = res.round; game.rank = res.rank; game.over = over;
     ok ? sfx.ok() : sfx.no(); flash(ok); hud();
     const s = res.state;
     view(`<div class="verdict ${ok ? "ok" : "no"}">${ok ? "Correct" : "Missed"}</div>
@@ -371,25 +422,32 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
     setKeys((e) => { if (e.key === "Enter") { e.preventDefault(); next(); } });
   }
 
-  function gameOver() {
-    sfx.over();
-    const m = MODES[mode], g = game.state, rank = game.rank, counted = game.engine.online;
-    const prev = best[mode];
-    const newSpan = !prev || g.span > prev.span;
-    const newScore = !prev || g.score > prev.score;
+  // Saves the finished game to this browser's history and bests. A game ended
+  // early before any right answer isn't worth a bar on the chart.
+  function record(early) {
+    const g = game.state, counted = game.engine.online, prev = best[mode];
+    const news = { span: !prev || g.span > prev.span, score: !prev || g.score > prev.score };
+    if (early && !g.span) return news;
     best[mode] = { span: Math.max(g.span, prev?.span || 0), score: Math.max(g.score, prev?.score || 0) };
     store.set("mspan-best", best);
     history.unshift({ date: dayKey(new Date()), mode, span: g.span, score: g.score, ranked: counted });
     history = history.slice(0, 3000); store.set("mspan-history", history); // a month of heavy play across three modes
     renderBest(); counted ? loadBoard() : renderProgress();
+    return news;
+  }
+
+  function gameOver(early = false) {
+    sfx.over();
+    const m = MODES[mode], g = game.state, rank = game.rank, counted = game.engine.online;
+    const { span: newSpan, score: newScore } = record(early);
     clear(); lockModes(false);
-    view(`<span class="eyebrow">${esc(m.name)}${counted ? "" : " · practice"} · game over</span>
+    view(`<span class="eyebrow">${esc(m.name)}${counted ? "" : " · practice"} · ${early ? "ended early" : "game over"}</span>
       ${(newScore || newSpan) && g.score > 0 ? `<span class="badge">${newSpan ? "New best span" : "New high score"}</span>` : ""}
       <div class="big">${g.score}</div>
       <div class="results">
         <div><span class="k">Span ${info(`<p>Span is the longest sequence you got right.</p><p>${g.span ? `You held ${g.span} ${m.unit}. ` : ""}${spanNote(mode, g.span)}</p>`, "About your span")}</span><span class="v">${g.span || "–"}</span></div>
         <div><span class="k">${counted ? "Rank" : "Rounds"}</span><span class="v">${counted ? (rank ? "#" + rank : "–") : g.rounds}</span></div>
-        <div><span class="k">Best span</span><span class="v">${best[mode].span || "–"}</span></div>
+        <div><span class="k">Best span</span><span class="v">${best[mode]?.span || "–"}</span></div>
       </div>
       <div class="row"><button class="go" id="again">${counted ? "Play again" : "Practice again"}</button><button class="go ghost" id="copy">Copy result</button></div>`);
     $("again").onclick = () => start(counted);
@@ -538,13 +596,15 @@ const API_URL = "https://memory-span.anand-bbc.workers.dev";
   }));
 
   document.querySelectorAll(".mode").forEach((b) => (b.onclick = () => {
-    if (game) return;
+    if (b.dataset.mode !== mode) askEnd(() => pickMode(b));
+  }));
+  function pickMode(b) {
     mode = b.dataset.mode;
     document.querySelectorAll(".mode").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
     boardMode = mode;
     document.querySelectorAll("#board-tabs button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.mode === mode)));
     if (ranked) loadBoard(); title();
-  }));
+  }
 
   renderSound(); renderBest(); renderView();
   title();

@@ -135,6 +135,12 @@ details.hint .pop b { color: var(--ink); }
 .hud .val { font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
 .hud .score .val { color: var(--amber); }
 .lives { display: flex; gap: 5px; }
+.end-btn { position: absolute; top: 6px; right: 10px; z-index: 1; font-size: 13px; padding: 4px 2px; }
+/* Sits over the top of the screen so the sequence underneath doesn't move. */
+.end-ask { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 2; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  font-size: 14px; text-align: left; padding: 10px 12px; background: var(--cab); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px var(--shadow); }
+.end-ask[hidden] { display: none; }
+.end-ask .go { padding: 8px 16px; font-size: 15px; }
 .life { width: 13px; height: 13px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px color-mix(in srgb, var(--teal) 60%, transparent); }
 .life.lost { background: transparent; border: 2px solid var(--line); box-shadow: none; }
 .streak { color: var(--amber); }
@@ -260,7 +266,15 @@ footer a { color: var(--teal); }
       <div class="stat score"><span class="label">Score</span><span class="val" id="hud-score">0</span></div>
       <div class="stat"><span class="label">Streak</span><span class="val streak" id="hud-streak">×1</span></div>
     </div>
-    <div class="screen" id="screen" aria-live="polite"><div class="screen-inner" id="si"></div></div>
+    <div class="screen" id="screen" aria-live="polite"><div class="screen-inner" id="si"></div>
+      <button class="linkbtn end-btn" id="end" hidden>End game</button>
+      <div class="end-ask" id="end-ask" role="alert" hidden>
+        <span id="end-ask-text"></span>
+        <span class="grow"></span>
+        <button class="go" id="end-yes">End game</button>
+        <button class="go ghost" id="end-no">Keep playing</button>
+      </div>
+    </div>
   </div>
 
   <div class="info" id="board-panel" hidden>
@@ -285,6 +299,6 @@ footer a { color: var(--teal); }
   <footer><a href="https://github.com/and/memory">Source on GitHub</a></footer>
 </div>
 
-<script src="game.js?v=13"></script>
+<script src="game.js?v=14"></script>
 </body>
 </html>
